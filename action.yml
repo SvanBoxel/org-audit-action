@@ -4,6 +4,9 @@ inputs:
   org: 
     description: 'Organization'
     required: true
+outputs:
+  org:
+    description: 'The org used'
 runs:
   using: 'node12'
   main: 'dist/index.js'
