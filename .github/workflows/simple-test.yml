@@ -15,7 +15,7 @@ jobs:
       id: audit-log-action      
       with:
         org: 'octodemo'
-        token: ${{ secrets.ORG_OWNER_TOKEN }}
+        token: ${{ secrets.TOKEN }}
     
     - name: Get the org output bounce
       run: echo "The org was ${{ steps.audit-log-action.outputs.org }}"
