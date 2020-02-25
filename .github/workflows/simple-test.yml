@@ -9,8 +9,7 @@ jobs:
     steps:
     - name: Audit Log Action
       uses: ./
-      id: audit-log-action
-      uses: actions/hello-world-javascript-action@v1
+      id: audit-log-action      
       with:
         org: 'octodemo'
     
