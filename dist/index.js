@@ -191,6 +191,7 @@ const github = __webpack_require__(462);
 try {
   const orgName = core.getInput('org');
   console.log(`Org input: ${orgName}!`);  
+  core.setOutput("org", $orgName);
 } catch (error) {
   core.setFailed(error.message);
 }

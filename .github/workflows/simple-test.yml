@@ -9,12 +9,12 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-      
+
     - name: Audit Log Action
       uses: ./
       id: audit-log-action      
       with:
         org: 'octodemo'
     
-    - name: Get the output time
+    - name: Get the org output bounce
       run: echo "The org was ${{ steps.audit-log-action.outputs.org }}"
