@@ -17927,7 +17927,7 @@ const main = async (data = null, collaboratorsCursor = null, repositoriesCursor 
     }
   `, 
   {
-    organization: 'octodemo',
+    organization: core.getInput('org') || process.env.ORG,
     collaboratorsCursor,
     repositoriesCursor
   });
