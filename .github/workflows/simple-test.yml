@@ -1,0 +1,18 @@
+on: [push]
+
+jobs:
+  
+  test_job:
+    runs-on: ubuntu-latest
+    name: Action basic test job
+    
+    steps:
+    - name: Audit Log Action
+      uses: ./
+      id: audit-log-action
+      uses: actions/hello-world-javascript-action@v1
+      with:
+        org: 'octodemo'
+    
+    - name: Get the output time
+      run: echo "The org was ${{ steps.audit-log-action.outputs.org }}"
