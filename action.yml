@@ -4,6 +4,9 @@ inputs:
   org: 
     description: 'Organization'
     required: true
+  token: 
+    description: 'Token from Org owner'
+    required: true
 outputs:
   org:
     description: 'The org used'
