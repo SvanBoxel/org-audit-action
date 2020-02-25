@@ -1,0 +1,9 @@
+name: 'Organization Audit Action'
+description: 'Outputs details of organization membership and user access and activity'
+inputs:
+  org: 
+    description: 'Organization'
+    required: true
+runs:
+  using: 'node12'
+  main: 'dist/index.js'
