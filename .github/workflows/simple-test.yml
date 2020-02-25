@@ -1,4 +1,4 @@
-on: [push]
+on: [push, dispatch]
 
 jobs:
   
@@ -9,13 +9,10 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-
-    - name: Audit Log Action
-      uses: ./
-      id: audit-log-action      
+    - name: Repository Dispatch
+      uses: peter-evans/repository-dispatch@v1.0.0
       with:
-        org: 'octodemo'
+        # A repo scoped GitHub Personal Access Token
         token: ${{ secrets.TOKEN }}
-    
-    - name: Get the org output bounce
-      run: echo "The org was ${{ steps.audit-log-action.outputs.org }}"
+        # The full name of the repository to send the dispatch. Defaults to the current repository.
+        repository: actions/org-audit-action
