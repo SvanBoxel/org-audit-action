@@ -17893,7 +17893,7 @@ const main = async (data = null, collaboratorsCursor = null, repositoriesCursor 
   console.log(data);
   const graphqlWithAuth = graphql.defaults({
     headers: {
-      authorization: `token ${process.env.TOKEN}`
+      authorization: `token ${core.getInput('TOKEN') || process.env.TOKEN}`
     }
   });
 
