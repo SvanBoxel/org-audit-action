@@ -3,6 +3,7 @@ const github = require('@actions/github');
 const { graphql } = require("@octokit/graphql");
 
 const main = async (data = null, collaboratorsCursor = null, repositoriesCursor = null) => {
+  console.log(data);
   const graphqlWithAuth = graphql.defaults({
     headers: {
       authorization: `token ${process.env.TOKEN}`
