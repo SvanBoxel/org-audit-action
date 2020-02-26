@@ -8,18 +8,25 @@ GitHub Action that provides an Organization Audit. The output of this action is 
 | octodemo     | bitoiu    | sensitive-repo    | read       |
 | octodemo     | svanboxel | action-frameworks | wrote      |
 
-
 ## Limitations
+
+### Actions Rate Limits
 
 > GitHub Actions can execute up to 1000 API requests in an hour across all actions within a repository
 
 With this limitation in mind if your number of your repositories (R) times the number of users (U) is higher than 1000, the action will exit and print the results it hand until then. Take into account that you might be spending API calls with other actions within the hour.
+
+### Archived Repositories
+
+If you have archived repositories, the report will finish when it finds the first archived repository.
 
 ## Example workflows
 
 Depending on your needs you might want to trigger the audit on different events. The simplest one to test it out is to trigger the workflow on push. For this workflow to run properly you'll need to provide it with a secret personal access token from someone that is an org owner or from an application that has that privilege. Providing it a lesser scope might not show all the information for the organization.
 
 ### Audit on push (for testing)
+
+The `issue` is optional. 
 
 ```yml
 on: push
