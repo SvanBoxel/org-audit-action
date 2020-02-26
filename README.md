@@ -2,11 +2,14 @@
 
 GitHub Action that provides an Organization Audit. The output of this action is a publish CSV file in the Actions tab. The user can also configure the action to publish the results to an issue. The output looks like:
 
-| Organization | User      | Repository        | Permission |
-|--------------|-----------|-------------------|------------|
-| octodemo     | bitoiu    | action-frameworks | admin      |
-| octodemo     | bitoiu    | sensitive-repo    | read       |
-| octodemo     | svanboxel | action-frameworks | wrote      |
+| org      | repo                   | user                  | permission | 
+|----------|------------------------|-----------------------|------------| 
+| octodemo | ReadingTimeDemo        | Nathan Henderson      | ADMIN      | 
+| octodemo | ReadingTimeDemo        | Eric Johnson          | ADMIN      | 
+| octodemo | ReadingTimeDemo        | Aziz Shamim           | ADMIN      | 
+| octodemo | ReadingTimeDemo        | Brent Beer            | ADMIN      | 
+| octodemo | ReadingTimeDemo        | Yuichi Tanaka         | ADMIN      | 
+| octodemo | ReadingTimeDemo        | Chris Patterson       | WRITE      |
 
 ## Limitations
 
