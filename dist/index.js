@@ -5547,7 +5547,7 @@ const { graphql } = __webpack_require__(754);
 const csvToMarkdown = __webpack_require__(377);
 const os = __webpack_require__(87);
 
-const MAX_API_CALLS = 3;
+const MAX_API_CALLS = 8;
 const ARTIFACT_FILE_NAME = 'raw-data.json';
 
 function JSONtoCSV(json) {
@@ -5670,6 +5670,7 @@ class CollectUserData {
   }
   
   startCollection() {
+    core.info(`Started collection for ${this.organization}.`);
     try {
       this.totalAPICalls = 0;
       this.collectData();
@@ -5680,6 +5681,7 @@ class CollectUserData {
   }
 
   normalizeResult() {
+    core.info(`Normalizing result.`);
     this.result.repositories.nodes.forEach(repository => {        
       repository.collaborators.edges.forEach( collaborator => {
         this.normalizedData.push([
@@ -5714,9 +5716,9 @@ class CollectUserData {
         ...this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges,
         ...collaboratorsPage.edges
       ]
-      core.debug(`Still scanning ${currentRepository.name}, current member count: ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges.length}`);
+      core.info(`⏳ Still scanning ${currentRepository.name}, current member count: ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges.length}`);
     } else {
-      core.debug(`Finished scanning ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].name}, total number of members: ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges.length}`);
+      core.info(`✅ Finished scanning ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].name}, total number of members: ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges.length}`);
       this.result.repositories.nodes[this.result.repositories.nodes.length -1].previousCursor = repositoriesCursor;
       this.result.repositories.nodes = [
         ...this.result.repositories.nodes,
