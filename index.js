@@ -12,6 +12,7 @@ const writeFileAsync = promisify(fs.writeFile)
 
 const ARTIFACT_FILE_NAME = 'raw-data';
 const DATA_FOLDER = './data';
+const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository collaborators."
 
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
@@ -136,8 +137,14 @@ class CollectUserData {
       
       return organization;
     } catch (error) {
-      console.log("Request failed:", error.request); 
-      console.log(error.message); 
+      // console.log("Request failed:", error.request); 
+      // console.log(error.message); 
+      if (error && error.message == ERROR_MESSAGE_ARCHIVED_REPO) {
+        //console.log(error.data.organization.nodes)
+        core.info(`⏸ Skipping archived repository ${error.data.organization.repositories.nodes[0].name}`);  
+        let data = await this.requestData(null, error.data.organization.repositories.pageInfo.endCursor)        
+        return data
+      }
       return null;
     }
   }
