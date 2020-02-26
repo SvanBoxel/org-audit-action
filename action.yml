@@ -1,5 +1,5 @@
-name: 'Organization Audit Action'
-description: 'Outputs details of organization membership and user access and activity'
+name: 'Organization Membership Audit Action'
+description: 'Outputs details of organization membership and user access'
 inputs:
   org: 
     description: 'Organization'
