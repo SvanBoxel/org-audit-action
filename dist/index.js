@@ -5593,7 +5593,7 @@ class CollectUserData {
     const artifactClient = artifact.create()
     const artifactName = `user-report-${new Date().getTime()}`;
     const files = [
-      `./data/${ARTIFACT_FILE_NAME}.json`,
+      // `./data/${ARTIFACT_FILE_NAME}.json`,
       `./data/${ARTIFACT_FILE_NAME}.csv`
     ]
     const rootDirectory = './'
