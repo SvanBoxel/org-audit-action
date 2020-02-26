@@ -1,4 +1,4 @@
-on: [dispatch]
+on: [push]
 
 jobs:
   make_report:
