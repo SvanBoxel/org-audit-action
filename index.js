@@ -32,13 +32,14 @@ function JSONtoCSV(json) {
 }
 
 class CollectUserData {
-  constructor(token, organization, repository, data ) {
+  constructor(token, organization, repository, options) {
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
     
     this.repository = repository;
-    this.organization = organization; 
-    this.result = data || null;
+    this.organization = organization;
+    this.options = {}; 
+    this.result = options.data || null;
     this.totalAPICalls = 0;
     this.normalizedData = []
   }
@@ -62,8 +63,11 @@ class CollectUserData {
   }
 
   async postResultsToIssue(csv) {
-    const [owner, repo] = this.repository.split('/');
+    if (this.options.postToIssue !== true) {
+      return core.info(`Skipping posting result to issue ${this.repository}.`);
+    }
 
+    const [owner, repo] = this.repository.split('/');
     let body = await csvToMarkdown(csv, ",", true)
 
     core.info(`Posting result to issue ${this.repository}.`);
@@ -206,6 +210,7 @@ class CollectUserData {
       await this.writeCSV(csv);
 
       await this.createandUploadArtifacts();
+
       await this.postResultsToIssue(csv)
       process.exit();
     }
@@ -235,7 +240,9 @@ class CollectUserData {
 const main = async () => {
   const token = core.getInput('token') || process.env.TOKEN;
   const org = core.getInput('org') || process.env.ORG;
-  const Collector = new CollectUserData(token, org, process.env.GITHUB_REPOSITORY)
+  const Collector = new CollectUserData(token, org, process.env.GITHUB_REPOSITORY, {
+    postToIssue: core.getInput('issue') || process.env.ISSUE 
+  })
   await Collector.startCollection();
 }
 
