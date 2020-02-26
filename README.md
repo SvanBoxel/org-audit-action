@@ -41,7 +41,7 @@ jobs:
     name: Org Membership Audit Log
         
     - name: Org Membership Audit Log Action
-      uses: actions/org-audit-action      
+      uses: svanboxel/org-audit-action      
       with:
         org: 'octodemo'
         token: ${{ secrets.TOKEN }}
@@ -63,7 +63,7 @@ jobs:
     name: Org Membership Audit Log
         
     - name: Org Membership Audit Log Action
-      uses: actions/org-audit-action      
+      uses: svanboxel/org-audit-action      
       with:
         org: 'octodemo'
         token: ${{ secrets.TOKEN }}
@@ -84,7 +84,7 @@ jobs:
     name: Org Membership Audit Log
         
     - name: Org Membership Audit Log Action
-      uses: actions/org-audit-action      
+      uses: svanboxel/org-audit-action      
       with:
         org: 'octodemo'
         token: ${{ secrets.TOKEN }}
