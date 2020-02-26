@@ -93,4 +93,4 @@ jobs:
 
 ## Help us improve it
 
-Open an issue on: https://github.com/actions/org-audit-action
+Open an issue on: https://github.com/svanboxel/org-audit-action
