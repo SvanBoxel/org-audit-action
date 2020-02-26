@@ -3,10 +3,18 @@ const artifact = require('@actions/artifact');
 const github = require('@actions/github');
 const { graphql } = require("@octokit/graphql");
 const csvToMarkdown = require('csv-to-markdown-table');
+const fs = require('fs');
 const os = require('os');
 
-const MAX_API_CALLS = 8;
-const ARTIFACT_FILE_NAME = 'raw-data.json';
+const { promisify } = require('util')
+
+const writeFileAsync = promisify(fs.writeFile)
+
+const MAX_API_CALLS = 4;
+const ARTIFACT_FILE_NAME = 'raw-data';
+const DATA_FOLDER = './data';
+
+!fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 function JSONtoCSV(json) {
   var keys = ["org", "repo", "user", "permission"];
@@ -35,19 +43,21 @@ class CollectUserData {
     this.normalizedData = []
   }
   
-  async createArtifact() {
+  async createandUploadArtifacts() {
     if (!process.env.GITHUB_RUN_NUMBER) {
       return core.debug('not running in actions, skipping artifact upload')
     }
 
     const artifactClient = artifact.create()
     const artifactName = `user-report-${new Date().getTime()}`;
-    const files = [ARTIFACT_FILE_NAME]
+    const files = [
+      `./data/${ARTIFACT_FILE_NAME}.json`,
+      `./data/${ARTIFACT_FILE_NAME}.csv`
+    ]
     const rootDirectory = './'
     const options = { continueOnError: true }
 
     const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
-    console.log(uploadResult);
     return uploadResult;
   }
 
@@ -130,7 +140,7 @@ class CollectUserData {
   }
   
   startCollection() {
-    core.info(`Started collection for ${this.organization}.`);
+    core.info(`Start collecting for ${this.organization}.`);
     try {
       this.totalAPICalls = 0;
       this.collectData();
@@ -154,13 +164,13 @@ class CollectUserData {
     })
   }
   
-  // writeJSON() {
-  //   try {
-  //     fs.writeFileSync(`./${ARTIFACT_FILE_NAME}`, JSON.stringify(this.result), this.createArtifact)  
-  //   } catch (err) {
-  //     console.error(err)
-  //   }
-  // }
+  async writeJSON(json) {
+    writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.json`, JSON.stringify(json))
+  }
+
+  async writeCSV(csv) {
+    writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`, JSON.stringify(csv))
+  }
   
   async collectData(collaboratorsCursor, repositoriesCursor) {
     const data = await this.requestData(collaboratorsCursor, repositoriesCursor);
@@ -189,7 +199,13 @@ class CollectUserData {
     if (this.totalAPICalls === MAX_API_CALLS) {
       this.normalizeResult();
       const json = this.normalizedData;
+
+      await this.writeJSON(json);
+
       const csv = JSONtoCSV(json);
+      await this.writeCSV(csv);
+
+      await this.createandUploadArtifacts();
       await this.postResultsToIssue(csv)
       process.exit();
     }
