@@ -6502,24 +6502,9 @@ const core = __webpack_require__(327);
 const github = __webpack_require__(119);
 const { Octokit } = __webpack_require__(43);
 const { graphql } = __webpack_require__(754);
+const fs = __webpack_require__(747)
 
-// const TIME_LIMIT = 60 * 1000; // seconds to milliseconds
-// const start_time = new Date().getTime();
-
-const MAX_API_CALLS = 50;
-const token = `${core.getInput('TOKEN') || process.env.TOKEN}`
-
-
-// setup octokit
-// const octokit = new Octokit({
-//   auth: token
-// });
-
-let finished_api_calls = 0;
-
-const normalize_data = (data) => {
-  return data;
-}
+const MAX_API_CALLS = 2;
 
 class CollectUserData {
   constructor(token, organization, data) {
@@ -6529,7 +6514,7 @@ class CollectUserData {
     this.result = data || null;
     this.totalAPICalls = 0;
   }
-
+  
   initiateGraphQLClient(token) {
     this.graphqlClient = graphql.defaults({
       headers: {
@@ -6537,14 +6522,15 @@ class CollectUserData {
       }
     });
   }
-
+  
   normalizeResult() {
     return this.result;
   }
-
+  
   async requestData (collaboratorsCursor = null, repositoriesCursor = null) {
     try {
-    const { organization } = await this.graphqlClient(`
+      this.totalAPICalls++;
+      const { organization } = await this.graphqlClient(`
       query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
         organization(login: $organization) {
           repositories (first: 1, after: $repositoriesCursor) {
@@ -6571,27 +6557,40 @@ class CollectUserData {
           }
         }
       }
-    `, 
-    {
-      organization: this.organization || core.getInput('org') || process.env.ORG,
-      collaboratorsCursor,
-      repositoriesCursor
-    });
-
+      `, 
+      {
+        organization: this.organization || core.getInput('org') || process.env.ORG,
+        collaboratorsCursor,
+        repositoriesCursor
+      });
+      
       return organization;
     } catch (error) {
       console.log("Request failed:", error.request); 
       console.log(error.message); 
     }
   }
-
+  
+  startCollection() {
+    this.totalAPICalls = 0;
+    this.collectData();
+  }
+  
+  writeJSON() {
+    try {
+      fs.writeFileSync('./test.json', JSON.stringify(this.result))
+    } catch (err) {
+      console.error(err)
+    }
+  }
+  
   async collectData(collaboratorsCursor, repositoriesCursor) {
     const data = await this.requestData(collaboratorsCursor, repositoriesCursor);
-
+    
     const repositoriesPage = data.repositories;
     const collaboratorsPage = data.repositories.nodes[0].collaborators;
     const currentRepository = repositoriesPage.nodes[0];
-  
+    
     if (!this.result) {
       this.result = data;
     } else if (this.result && currentRepository.name === this.result.repositories.nodes[this.result.repositories.nodes.length - 1].name) {
@@ -6608,7 +6607,12 @@ class CollectUserData {
         currentRepository
       ]
     };
-  
+    
+    if (this.totalAPICalls === MAX_API_CALLS) {
+      this.writeJSON()
+      process.exit();
+    }
+
     if(collaboratorsPage.pageInfo.hasNextPage === true) {
       let repoStartCursor = null;
       if (collaboratorsPage.pageInfo.hasNextPage, this.result.repositories.nodes.length === 1) {
@@ -6619,36 +6623,36 @@ class CollectUserData {
       await this.collectData(
         collaboratorsPage.pageInfo.endCursor,
         repoStartCursor
-      )
+        )
+      }
+      
+      if(repositoriesPage.pageInfo.hasNextPage === true) {
+        await this.collectData(
+          null,
+          repositoriesPage.pageInfo.endCursor
+          )
+        }
+        
+        if(finished_api_calls < MAX_API_CALLS) {
+          this.normalize_data();
+          return;
+        }
+      }
+      
     }
-  
-    if(repositoriesPage.pageInfo.hasNextPage === true) {
-      await this.collectData(
-        null,
-        repositoriesPage.pageInfo.endCursor
-      )
+    const main = async () => {
+      const token = core.getInput('token') || process.env.TOKEN;
+      const org = core.getInput('org') || process.env.ORG;
+      const Collector = new CollectUserData(token, org);
+      await Collector.startCollection();
     }
-  
-    if(finished_api_calls < MAX_API_CALLS) {
-      this.normalize_data();
-      return;
+    try {
+      main();
+    } catch (error) {
+      core.setFailed(error.message);
     }
-  }
-  
-}
-const main = async (data = null, collaboratorsCursor = null, repositoriesCursor = null) => {
-  const token = core.getInput('token') || process.env.TOKEN;
-  const org = core.getInput('org') || process.env.ORG;
-  const Collector = new CollectUserData(token, org);
-  await Collector.collectData();
-}
-try {
-  main();
-} catch (error) {
-  core.setFailed(error.message);
-}
-
-
+    
+    
 
 /***/ }),
 
