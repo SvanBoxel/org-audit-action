@@ -1,0 +1,19 @@
+name: 'Organization Membership Audit Action'
+description: 'Outputs details of organization membership and user access'
+inputs:
+  org: 
+    description: 'Organization'
+    required: true
+  token: 
+    description: 'Token from Org owner'
+    required: true
+  issue:
+    description: 'If you want the output on a new issue or not'
+    required: false
+    default: false
+outputs:
+  org:
+    description: 'The org used'
+runs:
+  using: 'node12'
+  main: 'dist/index.js'

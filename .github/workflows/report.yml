@@ -1,0 +1,15 @@
+on: [push]
+
+jobs:
+  make_report:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Audit Log Action
+      uses: ./
+      id: audit-log-action      
+      with:
+        org: 'octodemo'
+        token: ${{ secrets.TOKEN }}
+        issue: true
