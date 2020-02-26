@@ -37,6 +37,7 @@ class CollectUserData {
     
     this.repository = repository;
     this.organization = organization;
+    this.options = options; 
     this.result = options.data || null;
     this.normalizedData = []
   }
@@ -60,7 +61,8 @@ class CollectUserData {
   }
 
   async postResultsToIssue(csv) {
-    if (this.options.postToIssue) {
+    console.log(this.options)
+    if (!this.options.postToIssue) {
       return core.info(`Skipping posting result to issue ${this.repository}.`);
     }
 
@@ -215,6 +217,7 @@ class CollectUserData {
         collaboratorsPage.pageInfo.endCursor,
         repoStartCursor
       )
+      return;
     }
       
     if(repositoriesPage.pageInfo.hasNextPage === true) {
@@ -222,7 +225,10 @@ class CollectUserData {
         null,
         repositoriesPage.pageInfo.endCursor
       )
+      return;
     }
+
+    this.endCollection();
   }
 }
 
