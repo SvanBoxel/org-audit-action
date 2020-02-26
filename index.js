@@ -1,25 +1,71 @@
 const core = require('@actions/core');
+const artifact = require('@actions/artifact');
+const github = require('@actions/github');
 const { graphql } = require("@octokit/graphql");
 const fs = require('fs')
 
-const MAX_API_CALLS = -1;
+const MAX_API_CALLS = 5;
+const ARTIFACT_FILE_NAME = 'raw-data.json';
 
 class CollectUserData {
-  constructor(token, organization, data) {
-    this.initiateGraphQLClient(token)
+
+
+  constructor(token, organization, repository, data ) {
+    this.initiateGraphQLClient(token);
+    this.initiateOctokit(token);
     
+    this.repository = repository;
     this.organization = organization; 
     this.result = data || null;
     this.totalAPICalls = 0;
     this.normalizedData = []
+
+    this.postResultsToIssue();
   }
   
+  async createArtifact() {
+    if (!process.env.GITHUB_RUN_NUMBER) {
+      return core.debug('not running in actions, skipping artifact upload')
+    }
+
+    const artifactClient = artifact.create()
+    const artifactName = `user-report-${new Date().getTime()}`;
+    const files = [ARTIFACT_FILE_NAME]
+    const rootDirectory = './'
+    const options = { continueOnError: true }
+
+    const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
+    console.log(uploadResult);
+    return uploadResult;
+  }
+
+  async postResultsToIssue() {
+    const [owner, repo] = this.repository.split('/');
+    const { data: issue_response } = await this.octokit.issues.create({
+      owner,
+      repo,
+      "title": `Audit log report for ${new Date().toLocaleString()}`,
+      "body": 'test'
+    });
+
+    this.octokit.issues.update({
+      owner,
+      repo,
+      "issue_number" : issue_response.number,
+      "state": "closed"
+    });
+  }
+
   initiateGraphQLClient(token) {
     this.graphqlClient = graphql.defaults({
       headers: {
         authorization: `token ${token}`
       }
     });
+  }
+
+  initiateOctokit(token) {
+    this.octokit = new github.GitHub(token);
   }
   
   async requestData (collaboratorsCursor = null, repositoriesCursor = null) {
@@ -77,7 +123,6 @@ class CollectUserData {
   }
 
   normalizeResult() {
-
     this.result.repositories.nodes.forEach(repository => {        
         repository.collaborators.edges.forEach( collaborator => {
             this.normalizedData.push([
@@ -94,7 +139,7 @@ class CollectUserData {
   
   writeJSON() {
     try {
-      fs.writeFileSync('./raw-data.json', JSON.stringify(this.result))          
+      fs.writeFileSync(`./${ARTIFACT_FILE_NAME}`, JSON.stringify(this.result), this.createArtifact)  
     } catch (err) {
       console.error(err)
     }
@@ -124,11 +169,8 @@ class CollectUserData {
       ]
     };
     
-    console.log(MAX_API_CALLS)
-    console.log(this.totalAPICalls)
     if (this.totalAPICalls === MAX_API_CALLS) {
       this.writeJSON()
-      this.processData()
       process.exit();
     }
     
@@ -157,10 +199,10 @@ class CollectUserData {
 const main = async () => {
   const token = core.getInput('token') || process.env.TOKEN;
   const org = core.getInput('org') || process.env.ORG;
-  const Collector = new CollectUserData(token, org);
+  const Collector = new CollectUserData(token, org, process.env.GITHUB_REPOSITORY)
   await Collector.startCollection();
 }
-  
+
 try {
   main();
 } catch (error) {
