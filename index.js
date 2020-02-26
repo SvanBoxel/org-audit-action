@@ -1,6 +1,4 @@
 const core = require('@actions/core');
-const github = require('@actions/github');
-const { Octokit } = require('@octokit/rest');
 const { graphql } = require("@octokit/graphql");
 const fs = require('fs')
 
@@ -59,7 +57,7 @@ class CollectUserData {
       }
       `, 
       {
-        organization: this.organization || core.getInput('org') || process.env.ORG,
+        organization: this.organization,
         collaboratorsCursor,
         repositoriesCursor
       });
@@ -110,7 +108,7 @@ class CollectUserData {
     
     if (this.totalAPICalls === MAX_API_CALLS) {
       return this.writeJSON()
-      // process.exit();
+      process.exit();
     }
     
     if(collaboratorsPage.pageInfo.hasNextPage === true) {
