@@ -56,6 +56,7 @@ class CollectUserData {
 
     let body = await csvToMarkdown(csv, ",", true)
 
+    core.info(`Posting result to issue ${this.repository}.`);
     const { data: issue_response } = await this.octokit.issues.create({
       owner,
       repo,
@@ -63,6 +64,7 @@ class CollectUserData {
       "body": body
     });
 
+    core.info(issue_response);
     await this.octokit.issues.update({
       owner,
       repo,
