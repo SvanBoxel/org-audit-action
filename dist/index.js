@@ -3366,6 +3366,87 @@ exports.endpoint = endpoint;
 
 /***/ }),
 
+/***/ 377:
+/***/ (function(module, exports) {
+
+"use strict";
+
+exports.__esModule = true;
+/**
+ * Converts CSV to Markdown Table
+ *
+ * @param {string} csvContent - The string content of the CSV
+ * @param {string} delimiter - The character(s) to use as the CSV column delimiter
+ * @param {boolean} hasHeader - Whether to use the first row of Data as headers
+ * @returns {string}
+ */
+function csvToMarkdown(csvContent, delimiter, hasHeader) {
+    if (delimiter === void 0) { delimiter = "\t"; }
+    if (hasHeader === void 0) { hasHeader = false; }
+    if (delimiter != "\t") {
+        csvContent = csvContent.replace(/\t/g, "    ");
+    }
+    var columns = csvContent.split(/\r?\n/);
+    var tabularData = [];
+    var maxRowLen = [];
+    columns.forEach(function (e, i) {
+        if (typeof tabularData[i] == "undefined") {
+            tabularData[i] = [];
+        }
+        var regex = new RegExp(delimiter + '(?![^"]*"\\B)');
+        var row = e.split(regex);
+        row.forEach(function (ee, ii) {
+            if (typeof maxRowLen[ii] == "undefined") {
+                maxRowLen[ii] = 0;
+            }
+            // escape pipes and backslashes
+            ee = ee.replace(/(\||\\)/g, "\\$1");
+            maxRowLen[ii] = Math.max(maxRowLen[ii], ee.length);
+            tabularData[i][ii] = ee;
+        });
+    });
+    var headerOutput = "";
+    var seperatorOutput = "";
+    maxRowLen.forEach(function (len) {
+        var sizer = Array(len + 1 + 2);
+        seperatorOutput += "|" + sizer.join("-");
+        headerOutput += "|" + sizer.join(" ");
+    });
+    headerOutput += "| \n";
+    seperatorOutput += "| \n";
+    if (hasHeader) {
+        headerOutput = "";
+    }
+    var rowOutput = "";
+    tabularData.forEach(function (col, i) {
+        maxRowLen.forEach(function (len, y) {
+            var row = typeof col[y] == "undefined" ? "" : col[y];
+            var spacing = Array((len - row.length) + 1).join(" ");
+            var out = "| " + row + spacing + " ";
+            if (hasHeader && i === 0) {
+                headerOutput += out;
+            }
+            else {
+                rowOutput += out;
+            }
+        });
+        if (hasHeader && i === 0) {
+            headerOutput += "| \n";
+        }
+        else {
+            rowOutput += "| \n";
+        }
+    });
+    return "" + headerOutput + seperatorOutput + rowOutput;
+}
+exports.csvToMarkdown = csvToMarkdown;
+if (true) {
+    module.exports = csvToMarkdown;
+}
+
+
+/***/ }),
+
 /***/ 391:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -5463,14 +5544,28 @@ const core = __webpack_require__(327);
 const artifact = __webpack_require__(483);
 const github = __webpack_require__(119);
 const { graphql } = __webpack_require__(754);
-const fs = __webpack_require__(747)
+const csvToMarkdown = __webpack_require__(377);
+const os = __webpack_require__(87);
 
-const MAX_API_CALLS = 5;
+const MAX_API_CALLS = 3;
 const ARTIFACT_FILE_NAME = 'raw-data.json';
 
+function JSONtoCSV(json) {
+  var keys = ["org", "repo", "user", "permission"];
+  var csv = keys.join(',') + os.EOL;
+  
+  json.forEach(function(record) {
+		keys.forEach(function(_, i) {
+			csv += record[i]
+			if(i!=keys.length - 1) csv += ',';
+		});
+		csv += os.EOL;
+  });
+  
+  return csv;
+}
+
 class CollectUserData {
-
-
   constructor(token, organization, repository, data ) {
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
@@ -5480,8 +5575,6 @@ class CollectUserData {
     this.result = data || null;
     this.totalAPICalls = 0;
     this.normalizedData = []
-
-    this.postResultsToIssue();
   }
   
   async createArtifact() {
@@ -5500,16 +5593,19 @@ class CollectUserData {
     return uploadResult;
   }
 
-  async postResultsToIssue() {
+  async postResultsToIssue(csv) {
     const [owner, repo] = this.repository.split('/');
+
+    let body = await csvToMarkdown(csv, ",", true)
+
     const { data: issue_response } = await this.octokit.issues.create({
       owner,
       repo,
       "title": `Audit log report for ${new Date().toLocaleString()}`,
-      "body": 'test'
+      "body": body
     });
 
-    this.octokit.issues.update({
+    await this.octokit.issues.update({
       owner,
       repo,
       "issue_number" : issue_response.number,
@@ -5585,26 +5681,24 @@ class CollectUserData {
 
   normalizeResult() {
     this.result.repositories.nodes.forEach(repository => {        
-        repository.collaborators.edges.forEach( collaborator => {
-            this.normalizedData.push([
-                    this.organization,
-                    repository.name,
-                    collaborator.node.name,
-                    collaborator.permission 
-                ])
-        })        
+      repository.collaborators.edges.forEach( collaborator => {
+        this.normalizedData.push([
+          this.organization,
+          repository.name,
+          collaborator.node.name,
+          collaborator.permission 
+        ])
+      })        
     })
-
-    //console.log(this.normalizedData)
   }
   
-  writeJSON() {
-    try {
-      fs.writeFileSync(`./${ARTIFACT_FILE_NAME}`, JSON.stringify(this.result), this.createArtifact)  
-    } catch (err) {
-      console.error(err)
-    }
-  }
+  // writeJSON() {
+  //   try {
+  //     fs.writeFileSync(`./${ARTIFACT_FILE_NAME}`, JSON.stringify(this.result), this.createArtifact)  
+  //   } catch (err) {
+  //     console.error(err)
+  //   }
+  // }
   
   async collectData(collaboratorsCursor, repositoriesCursor) {
     const data = await this.requestData(collaboratorsCursor, repositoriesCursor);
@@ -5631,7 +5725,10 @@ class CollectUserData {
     };
     
     if (this.totalAPICalls === MAX_API_CALLS) {
-      this.writeJSON()
+      this.normalizeResult();
+      const json = this.normalizedData;
+      const csv = JSONtoCSV(json);
+      await this.postResultsToIssue(csv)
       process.exit();
     }
     

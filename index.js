@@ -2,14 +2,28 @@ const core = require('@actions/core');
 const artifact = require('@actions/artifact');
 const github = require('@actions/github');
 const { graphql } = require("@octokit/graphql");
-const fs = require('fs')
+const csvToMarkdown = require('csv-to-markdown-table');
+const os = require('os');
 
-const MAX_API_CALLS = 5;
+const MAX_API_CALLS = 3;
 const ARTIFACT_FILE_NAME = 'raw-data.json';
 
+function JSONtoCSV(json) {
+  var keys = ["org", "repo", "user", "permission"];
+  var csv = keys.join(',') + os.EOL;
+  
+  json.forEach(function(record) {
+		keys.forEach(function(_, i) {
+			csv += record[i]
+			if(i!=keys.length - 1) csv += ',';
+		});
+		csv += os.EOL;
+  });
+  
+  return csv;
+}
+
 class CollectUserData {
-
-
   constructor(token, organization, repository, data ) {
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
@@ -19,8 +33,6 @@ class CollectUserData {
     this.result = data || null;
     this.totalAPICalls = 0;
     this.normalizedData = []
-
-    this.postResultsToIssue();
   }
   
   async createArtifact() {
@@ -39,16 +51,19 @@ class CollectUserData {
     return uploadResult;
   }
 
-  async postResultsToIssue() {
+  async postResultsToIssue(csv) {
     const [owner, repo] = this.repository.split('/');
+
+    let body = await csvToMarkdown(csv, ",", true)
+
     const { data: issue_response } = await this.octokit.issues.create({
       owner,
       repo,
       "title": `Audit log report for ${new Date().toLocaleString()}`,
-      "body": 'test'
+      "body": body
     });
 
-    this.octokit.issues.update({
+    await this.octokit.issues.update({
       owner,
       repo,
       "issue_number" : issue_response.number,
@@ -124,26 +139,24 @@ class CollectUserData {
 
   normalizeResult() {
     this.result.repositories.nodes.forEach(repository => {        
-        repository.collaborators.edges.forEach( collaborator => {
-            this.normalizedData.push([
-                    this.organization,
-                    repository.name,
-                    collaborator.node.name,
-                    collaborator.permission 
-                ])
-        })        
+      repository.collaborators.edges.forEach( collaborator => {
+        this.normalizedData.push([
+          this.organization,
+          repository.name,
+          collaborator.node.name,
+          collaborator.permission 
+        ])
+      })        
     })
-
-    //console.log(this.normalizedData)
   }
   
-  writeJSON() {
-    try {
-      fs.writeFileSync(`./${ARTIFACT_FILE_NAME}`, JSON.stringify(this.result), this.createArtifact)  
-    } catch (err) {
-      console.error(err)
-    }
-  }
+  // writeJSON() {
+  //   try {
+  //     fs.writeFileSync(`./${ARTIFACT_FILE_NAME}`, JSON.stringify(this.result), this.createArtifact)  
+  //   } catch (err) {
+  //     console.error(err)
+  //   }
+  // }
   
   async collectData(collaboratorsCursor, repositoriesCursor) {
     const data = await this.requestData(collaboratorsCursor, repositoriesCursor);
@@ -170,7 +183,10 @@ class CollectUserData {
     };
     
     if (this.totalAPICalls === MAX_API_CALLS) {
-      this.writeJSON()
+      this.normalizeResult();
+      const json = this.normalizedData;
+      const csv = JSONtoCSV(json);
+      await this.postResultsToIssue(csv)
       process.exit();
     }
     
