@@ -37,7 +37,6 @@ class CollectUserData {
     
     this.repository = repository;
     this.organization = organization;
-    this.options = {}; 
     this.result = options.data || null;
     this.normalizedData = []
   }
@@ -61,7 +60,7 @@ class CollectUserData {
   }
 
   async postResultsToIssue(csv) {
-    if (this.options.postToIssue !== true) {
+    if (this.options.postToIssue) {
       return core.info(`Skipping posting result to issue ${this.repository}.`);
     }
 
