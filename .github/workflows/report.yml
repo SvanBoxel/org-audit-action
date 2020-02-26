@@ -12,3 +12,4 @@ jobs:
       with:
         org: 'octodemo'
         token: ${{ secrets.TOKEN }}
+        issue: true
