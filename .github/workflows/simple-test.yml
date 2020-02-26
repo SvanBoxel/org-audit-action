@@ -1,4 +1,4 @@
-on: [push, dispatch]
+on: [push, repository_dispatch]
 
 jobs:
   
