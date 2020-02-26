@@ -4,7 +4,7 @@ const { Octokit } = require('@octokit/rest');
 const { graphql } = require("@octokit/graphql");
 const fs = require('fs')
 
-const MAX_API_CALLS = 2;
+const MAX_API_CALLS = 10;
 
 class CollectUserData {
   constructor(token, organization, data) {
@@ -88,8 +88,8 @@ class CollectUserData {
     const data = await this.requestData(collaboratorsCursor, repositoriesCursor);
     
     const repositoriesPage = data.repositories;
-    const collaboratorsPage = data.repositories.nodes[0].collaborators;
     const currentRepository = repositoriesPage.nodes[0];
+    const collaboratorsPage = currentRepository.collaborators;
     
     if (!this.result) {
       this.result = data;
@@ -109,10 +109,10 @@ class CollectUserData {
     };
     
     if (this.totalAPICalls === MAX_API_CALLS) {
-      this.writeJSON()
-      process.exit();
+      return this.writeJSON()
+      // process.exit();
     }
-
+    
     if(collaboratorsPage.pageInfo.hasNextPage === true) {
       let repoStartCursor = null;
       if (collaboratorsPage.pageInfo.hasNextPage, this.result.repositories.nodes.length === 1) {
@@ -123,33 +123,29 @@ class CollectUserData {
       await this.collectData(
         collaboratorsPage.pageInfo.endCursor,
         repoStartCursor
-        )
-      }
+      )
+    }
       
-      if(repositoriesPage.pageInfo.hasNextPage === true) {
-        await this.collectData(
-          null,
-          repositoriesPage.pageInfo.endCursor
-          )
-        }
-        
-        if(finished_api_calls < MAX_API_CALLS) {
-          this.normalize_data();
-          return;
-        }
-      }
-      
+    if(repositoriesPage.pageInfo.hasNextPage === true) {
+      await this.collectData(
+        null,
+        repositoriesPage.pageInfo.endCursor
+      )
     }
-    const main = async () => {
-      const token = core.getInput('token') || process.env.TOKEN;
-      const org = core.getInput('org') || process.env.ORG;
-      const Collector = new CollectUserData(token, org);
-      await Collector.startCollection();
-    }
-    try {
-      main();
-    } catch (error) {
-      core.setFailed(error.message);
-    }
+  }
+}
+
+const main = async () => {
+  const token = core.getInput('token') || process.env.TOKEN;
+  const org = core.getInput('org') || process.env.ORG;
+  const Collector = new CollectUserData(token, org);
+  await Collector.startCollection();
+}
+  
+try {
+  main();
+} catch (error) {
+  core.setFailed(error.message);
+}
     
     
