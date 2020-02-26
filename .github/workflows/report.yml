@@ -1,0 +1,12 @@
+on: [dispatch]
+
+jobs:
+  make_report:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Audit Log Action
+      uses: ./
+      id: audit-log-action      
+      with:
+        org: 'octodemo'
+        token: ${{ secrets.TOKEN }}
