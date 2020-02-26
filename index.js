@@ -2,7 +2,7 @@ const core = require('@actions/core');
 const { graphql } = require("@octokit/graphql");
 const fs = require('fs')
 
-const MAX_API_CALLS = 10;
+const MAX_API_CALLS = -1;
 
 class CollectUserData {
   constructor(token, organization, data) {
@@ -11,6 +11,7 @@ class CollectUserData {
     this.organization = organization; 
     this.result = data || null;
     this.totalAPICalls = 0;
+    this.normalizedData = []
   }
   
   initiateGraphQLClient(token) {
@@ -19,10 +20,6 @@ class CollectUserData {
         authorization: `token ${token}`
       }
     });
-  }
-  
-  normalizeResult() {
-    return this.result;
   }
   
   async requestData (collaboratorsCursor = null, repositoriesCursor = null) {
@@ -70,13 +67,34 @@ class CollectUserData {
   }
   
   startCollection() {
-    this.totalAPICalls = 0;
-    this.collectData();
+    try {
+      this.totalAPICalls = 0;
+      this.collectData();
+    } catch(err) {
+      this.normalizeResult()
+      process.exit()
+    }
+  }
+
+  normalizeResult() {
+
+    this.result.repositories.nodes.forEach(repository => {        
+        repository.collaborators.edges.forEach( collaborator => {
+            this.normalizedData.push([
+                    this.organization,
+                    repository.name,
+                    collaborator.node.name,
+                    collaborator.permission 
+                ])
+        })        
+    })
+
+    //console.log(this.normalizedData)
   }
   
   writeJSON() {
     try {
-      fs.writeFileSync('./test.json', JSON.stringify(this.result))
+      fs.writeFileSync('./raw-data.json', JSON.stringify(this.result))          
     } catch (err) {
       console.error(err)
     }
@@ -106,8 +124,11 @@ class CollectUserData {
       ]
     };
     
+    console.log(MAX_API_CALLS)
+    console.log(this.totalAPICalls)
     if (this.totalAPICalls === MAX_API_CALLS) {
-      return this.writeJSON()
+      this.writeJSON()
+      this.processData()
       process.exit();
     }
     
