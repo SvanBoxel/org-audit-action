@@ -1,6 +1,6 @@
 # Organization Audit Action
 
-GitHub Action that provides an Organization Audit. The output of this action is a publish CSV file in the Actions tab. The user can also configure the action to publish the results to an issue. The output looks like:
+GitHub Action that provides an Organization Audit. The output of this action is a published CSV file in the Actions tab. The user can also configure the action to publish the results to an issue. The output looks like:
 
 | org      | repo                   | user                  | permission | 
 |----------|------------------------|-----------------------|------------| 
