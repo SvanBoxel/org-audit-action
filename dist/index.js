@@ -5552,7 +5552,6 @@ const { promisify } = __webpack_require__(669)
 
 const writeFileAsync = promisify(fs.writeFile)
 
-const MAX_API_CALLS = 4;
 const ARTIFACT_FILE_NAME = 'raw-data';
 const DATA_FOLDER = './data';
 
@@ -5582,7 +5581,6 @@ class CollectUserData {
     this.organization = organization;
     this.options = {}; 
     this.result = options.data || null;
-    this.totalAPICalls = 0;
     this.normalizedData = []
   }
   
@@ -5594,7 +5592,7 @@ class CollectUserData {
     const artifactClient = artifact.create()
     const artifactName = `user-report-${new Date().getTime()}`;
     const files = [
-      // `./data/${ARTIFACT_FILE_NAME}.json`,
+      `./data/${ARTIFACT_FILE_NAME}.json`,
       `./data/${ARTIFACT_FILE_NAME}.csv`
     ]
     const rootDirectory = './'
@@ -5643,7 +5641,6 @@ class CollectUserData {
   
   async requestData (collaboratorsCursor = null, repositoriesCursor = null) {
     try {
-      this.totalAPICalls++;
       const { organization } = await this.graphqlClient(`
       query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
         organization(login: $organization) {
@@ -5682,18 +5679,30 @@ class CollectUserData {
     } catch (error) {
       console.log("Request failed:", error.request); 
       console.log(error.message); 
+      return null;
     }
   }
   
-  startCollection() {
+  async startCollection() {
     core.info(`Start collecting for ${this.organization}.`);
     try {
-      this.totalAPICalls = 0;
       this.collectData();
     } catch(err) {
-      this.normalizeResult()
-      process.exit()
+      await this.endCollection();
     }
+  }
+
+  async endCollection() {
+    this.normalizeResult();
+    const json = this.normalizedData;
+    const csv = JSONtoCSV(json);
+
+    await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.json`, JSON.stringify(json))
+    await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`, JSON.stringify(csv))
+
+    await this.createandUploadArtifacts();
+    await this.postResultsToIssue(csv)
+    process.exit();
   }
 
   normalizeResult() {
@@ -5710,17 +5719,13 @@ class CollectUserData {
     })
   }
   
-  async writeJSON(json) {
-    writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.json`, JSON.stringify(json))
-  }
-
-  async writeCSV(csv) {
-    writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`, JSON.stringify(csv))
-  }
-  
   async collectData(collaboratorsCursor, repositoriesCursor) {
     const data = await this.requestData(collaboratorsCursor, repositoriesCursor);
-    
+
+    if(!data) {
+      await this.endCollection();
+    }
+
     const repositoriesPage = data.repositories;
     const currentRepository = repositoriesPage.nodes[0];
     const collaboratorsPage = currentRepository.collaborators;
@@ -5741,21 +5746,6 @@ class CollectUserData {
         currentRepository
       ]
     };
-    
-    if (this.totalAPICalls === MAX_API_CALLS) {
-      this.normalizeResult();
-      const json = this.normalizedData;
-
-      await this.writeJSON(json);
-
-      const csv = JSONtoCSV(json);
-      await this.writeCSV(csv);
-
-      await this.createandUploadArtifacts();
-
-      await this.postResultsToIssue(csv)
-      process.exit();
-    }
     
     if(collaboratorsPage.pageInfo.hasNextPage === true) {
       let repoStartCursor = null;
