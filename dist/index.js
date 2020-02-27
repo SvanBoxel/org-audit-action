@@ -5560,7 +5560,7 @@ const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository co
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 function JSONtoCSV(json) {
-  var keys = ["enterprise", "organization", "repo", "user", "permission"];
+  var keys = ["enterprise", "organization", "repo", "user", "login", "permission"];
   var csv = keys.join(',') + os.EOL;
   
   json.forEach(function(record) {
@@ -5728,6 +5728,7 @@ class CollectUserData {
             organization,
             repository.name,
             collaborator.node.name,
+            collaborator.node.login,
             collaborator.permission 
           ])
         })        
@@ -26407,6 +26408,7 @@ const queries = {
               edges {
                 node {
                   name
+                  login
                 }
                 permission
               }

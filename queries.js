@@ -18,6 +18,7 @@ const queries = {
               edges {
                 node {
                   name
+                  login
                 }
                 permission
               }
