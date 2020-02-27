@@ -147,12 +147,13 @@ class CollectUserData {
 
     try {
       for(const { login } of this.organizations) {
-        core.info(`🔍 Start collecting for organization ${login}.`);
+        core.startGroup(`🔍 Start collecting for organization ${login}.`)
         this.result[login] = null;
         await this.collectData(login);
 
         if (this.result[login]) {
           core.info(`✅ Finished collecting for organization ${login}, total number of repos: ${this.result[login].repositories.nodes.length}`);
+          core.endGroup()
         }
       }
 
