@@ -13,6 +13,20 @@ The output looks like this running on `enterprise` mode:
 | goodcorp   | core         | innersource-docs | Richard Erwin    | rerwinx    | READ       |   |
 
 
+## Action configuration overview
+
+```yml
+ - name: Membership Audit Log Action
+      uses: svanboxel/org-audit-action@master
+      with:
+        ## `organization` and `enterprise` are mutually exclusive
+        enterprise: 'goodcorp'  
+        ## repo, read:org, read:enteprise (if running with enterprise option)
+        token: ${{ secrets.TOKEN }}
+        ## issue is optional
+        issue: true
+```
+
 ## Example workflows
 
 Depending on your needs you might want to trigger the audit on different events. The simplest one to test it out is to trigger the workflow on push. For this workflow to run properly you'll need to provide it with a secret personal access token from someone that is an org owner or from an application that has that privilege. Providing it a lesser scope might not show all the information for the organization.
