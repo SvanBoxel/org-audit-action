@@ -3,9 +3,13 @@ on:
     branches:    
       - master     
 
- - name: Repository Dispatch
-   uses: peter-evans/repository-dispatch@v1
-   with:
-     repository: octodemo/testing-audit-log
-     token: ${{ secrets.TOKEN }}
-     event-type: test-suite
+jobs:
+  trigger-testing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v1
+        with:
+           repository: octodemo/testing-audit-log
+           token: ${{ secrets.TOKEN }}
+           event-type: test-suite
