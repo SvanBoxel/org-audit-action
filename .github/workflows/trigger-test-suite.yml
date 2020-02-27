@@ -1,0 +1,11 @@
+on:
+  push:    
+    branches:    
+      - master     
+
+ - name: Repository Dispatch
+   uses: peter-evans/repository-dispatch@v1
+   with:
+     repository: octodemo/testing-audit-log
+     token: ${{ secrets.TOKEN }}
+     event-type: test-suite
