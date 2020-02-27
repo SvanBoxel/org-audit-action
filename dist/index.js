@@ -5723,15 +5723,15 @@ class CollectUserData {
           return;
         }     
 
-        repository.collaborators.edges.forEach( collaborator => {
-          this.normalizedData.push([
-            this.enterprise,
+        repository.collaborators.edges.forEach(collaborator => {
+          this.normalizedData.push({
+            ...(this.enterprise ? {enterprise: this.enterprise} : null),
             organization,
-            repository.name,
-            collaborator.node.name,
-            collaborator.node.login,
-            collaborator.permission 
-          ])
+            repository: repository.name,
+            name: collaborator.node.name,
+            login: collaborator.node.login,
+            permission: collaborator.permission 
+          })
         })        
       })
     })
@@ -5740,7 +5740,7 @@ class CollectUserData {
   async collectData(organization, collaboratorsCursor, repositoriesCursor) {
     const data = await this.requestOrganizationData(organization, collaboratorsCursor, repositoriesCursor);
     if(!data || !data.repositories.nodes.length) {
-      core.info(`⏸  No data found for ${organization}, maybe you don't have the correct permission`);  
+      core.info(`⏸  No data found for ${organization}, probably you don't have the right permission`);  
       return;
     }
 
