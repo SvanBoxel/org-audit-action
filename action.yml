@@ -1,19 +1,22 @@
-name: 'Organization Membership Audit Action'
-description: 'Outputs details of organization membership and user access'
+name: 'Membership Audit Action for Enterprises and Organizations'
+description: 'Outputs the membership access details of enterprise account or organization'
 inputs:
-  org: 
-    description: 'Organization'
-    required: true
+  organization: 
+    description: 'Specify an organization if you want to audit a single org. Only specify either an organization or an enterprise account.'
+    required: false
+  enterprise: 
+    description: 'Specify an Enterprise Account'
+    required: false
   token: 
-    description: 'Token from Org owner'
+    description: 'Token with repo:read for the organizations targetted. If using enterprise mode, the token bearer has to be an Enterprise Account administrator'
     required: true
   issue:
-    description: 'If you want the output on a new issue or not'
+    description: 'If you want the output posted on an issue in the repo running the action'
     required: false
     default: false
 outputs:
-  org:
-    description: 'The org used'
+  csv:
+    description: 'A CSV string with the output'
 runs:
   using: 'node12'
   main: 'dist/index.js'
