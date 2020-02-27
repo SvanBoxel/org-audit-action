@@ -34,19 +34,20 @@ function JSONtoCSV(json) {
 
 class CollectUserData {
   constructor(token, organization, enterprise, options) {
-    this.organizations = [{ name: organization }];
+    this.validateInput(organization, enterprise);
+
+    this.organizations = [{ login: organization }];
     this.enterprise = enterprise;
     this.options = options; 
     this.result = options.data || {};
     this.normalizedData = []
 
-    this.validateInput();
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
   }
   
-  validateInput() {
-    if (this.organization && this.enterprise) {
+  validateInput(organization, enterprise) {
+    if (organization && enterprise) {
       core.setFailed('The organization and enterprise parameter are mutually exclusive.');
       process.exit();
     }
