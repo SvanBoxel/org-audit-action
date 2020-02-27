@@ -5,8 +5,9 @@ const { graphql } = require("@octokit/graphql");
 const csvToMarkdown = require('csv-to-markdown-table');
 const fs = require('fs');
 const os = require('os');
-
 const { promisify } = require('util')
+
+const { organizationQuery, enterpriseQuery } = require('./queries');
 
 const writeFileAsync = promisify(fs.writeFile)
 
@@ -17,7 +18,7 @@ const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository co
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 function JSONtoCSV(json) {
-  var keys = ["org", "repo", "user", "permission"];
+  var keys = ["enterprise", "organization", "repo", "user", "permission"];
   var csv = keys.join(',') + os.EOL;
   
   json.forEach(function(record) {
@@ -32,17 +33,25 @@ function JSONtoCSV(json) {
 }
 
 class CollectUserData {
-  constructor(token, organization, repository, options) {
+  constructor(token, organization, enterprise, options) {
+    this.organizations = [{ name: organization }];
+    this.enterprise = enterprise;
+    this.options = options; 
+    this.result = options.data || {};
+    this.normalizedData = []
+
+    this.validateInput();
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
-    
-    this.repository = repository;
-    this.organization = organization;
-    this.options = options; 
-    this.result = options.data || null;
-    this.normalizedData = []
   }
   
+  validateInput() {
+    if (this.organization && this.enterprise) {
+      core.setFailed('The organization and enterprise parameter are mutually exclusive.');
+      process.exit();
+    }
+  }
+
   async createandUploadArtifacts() {
     if (!process.env.GITHUB_RUN_NUMBER) {
       return core.debug('not running in actions, skipping artifact upload')
@@ -62,15 +71,14 @@ class CollectUserData {
   }
 
   async postResultsToIssue(csv) {
-    console.log(this.options)
     if (!this.options.postToIssue) {
-      return core.info(`Skipping posting result to issue ${this.repository}.`);
+      return core.info(`Skipping posting result to issue ${this.options.repository}.`);
     }
 
-    const [owner, repo] = this.repository.split('/');
+    const [owner, repo] = this.options.repository.split('/');
     let body = await csvToMarkdown(csv, ",", true)
 
-    core.info(`Posting result to issue ${this.repository}.`);
+    core.info(`Posting result to issue ${this.options.repository}.`);
     const { data: issue_response } = await this.octokit.issues.create({
       owner,
       repo,
@@ -99,50 +107,25 @@ class CollectUserData {
     this.octokit = new github.GitHub(token);
   }
   
-  async requestData (collaboratorsCursor = null, repositoriesCursor = null) {
+  async requestEnterpriseData() {
+    const { enterprise } = await this.graphqlClient(enterpriseQuery, { enterprise: this.enterprise });
+    return enterprise;
+  }
+
+  async requestOrganizationData (organization, collaboratorsCursor = null, repositoriesCursor = null) {
     try {
-      const { organization } = await this.graphqlClient(`
-      query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
-        organization(login: $organization) {
-          repositories (first: 1, after: $repositoriesCursor) {
-            pageInfo {
-              startCursor
-              endCursor
-              hasNextPage
-            }
-            nodes {
-              name
-              collaborators(first: 50, after: $collaboratorsCursor, affiliation: ALL) {
-                pageInfo {
-                  endCursor
-                  hasNextPage
-                }
-                edges {
-                  node {
-                    name
-                  }
-                  permission
-                }
-              }
-            }
-          }
-        }
-      }
-      `, 
+      const { organization: data } = await this.graphqlClient(organizationQuery, 
       {
-        organization: this.organization,
+        organization,
         collaboratorsCursor,
         repositoriesCursor
       });
       
-      return organization;
+      return data;
     } catch (error) {
-      // console.log("Request failed:", error.request); 
-      // console.log(error.message); 
       if (error && error.message == ERROR_MESSAGE_ARCHIVED_REPO) {
-        //console.log(error.data.organization.nodes)
-        core.info(`⏸ Skipping archived repository ${error.data.organization.repositories.nodes[0].name}`);  
-        let data = await this.requestData(null, error.data.organization.repositories.pageInfo.endCursor)        
+        core.info(`⏸  Skipping archived repository ${error.data.organization.repositories.nodes[0].name}`);  
+        let data = await this.requestOrganizationData(organization, null, error.data.organization.repositories.pageInfo.endCursor)        
         return data
       }
       return null;
@@ -150,10 +133,25 @@ class CollectUserData {
   }
   
   async startCollection() {
-    core.info(`Start collecting for ${this.organization}.`);
+    if (this.enterprise) {
+      const enterpriseData = await this.requestEnterpriseData();
+      this.organizations = enterpriseData.organizations.nodes;
+    }
+
     try {
-      this.collectData();
+      for(const { login } of this.organizations) {
+        core.info(`🔍 Start collecting for organization ${login}.`);
+        this.result[login] = null;
+        await this.collectData(login);
+
+        if (this.result[login]) {
+          core.info(`✅ Finished collecting for organization ${login}, total number of repos: ${this.result[login].repositories.nodes.length}`);
+        }
+      }
+
+      await this.endCollection();
     } catch(err) {
+      console.log(err)
       await this.endCollection();
     }
   }
@@ -173,54 +171,68 @@ class CollectUserData {
 
   normalizeResult() {
     core.info(`Normalizing result.`);
-    this.result.repositories.nodes.forEach(repository => {        
-      repository.collaborators.edges.forEach( collaborator => {
-        this.normalizedData.push([
-          this.organization,
-          repository.name,
-          collaborator.node.name,
-          collaborator.permission 
-        ])
-      })        
+    Object.keys(this.result).forEach(organization => {
+      if (!this.result[organization] || !this.result[organization].repositories) {
+        return;
+      }
+      this.result[organization].repositories.nodes.forEach(repository => {   
+        if (!repository.collaborators.edges) {
+          return;
+        }     
+
+        repository.collaborators.edges.forEach( collaborator => {
+          this.normalizedData.push([
+            this.enterprise,
+            organization,
+            repository.name,
+            collaborator.node.name,
+            collaborator.permission 
+          ])
+        })        
+      })
     })
   }
   
-  async collectData(collaboratorsCursor, repositoriesCursor) {
-    const data = await this.requestData(collaboratorsCursor, repositoriesCursor);
-
-    if(!data) {
-      await this.endCollection();
+  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
+    const data = await this.requestOrganizationData(organization, collaboratorsCursor, repositoriesCursor);
+    if(!data || !data.repositories.nodes.length) {
+      core.info(`⏸  No data found for ${organization}, maybe you don't have the correct permission`);  
+      return;
     }
 
     const repositoriesPage = data.repositories;
     const currentRepository = repositoriesPage.nodes[0];
     const collaboratorsPage = currentRepository.collaborators;
-    
-    if (!this.result) {
-      this.result = data;
-    } else if (this.result && currentRepository.name === this.result.repositories.nodes[this.result.repositories.nodes.length - 1].name) {
-      this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges = [
-        ...this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges,
+    let result = this.result[organization] ? this.result[organization] : data;
+
+    const repositoriesInResult = result.repositories.nodes.length;
+    const lastRepositoryInResult = result.repositories.nodes[repositoriesInResult - 1];
+    if (result && currentRepository.name ===lastRepositoryInResult.name) {
+      lastRepositoryInResult.collaborators.edges = [
+        ...lastRepositoryInResult.collaborators.edges,
         ...collaboratorsPage.edges
       ]
-      core.info(`⏳ Still scanning ${currentRepository.name}, current member count: ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges.length}`);
+      core.info(`⏳ Still scanning ${currentRepository.name}, current member count: ${lastRepositoryInResult.collaborators.edges.length}`);
     } else {
-      core.info(`✅ Finished scanning ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].name}, total number of members: ${this.result.repositories.nodes[this.result.repositories.nodes.length -1].collaborators.edges.length}`);
-      this.result.repositories.nodes[this.result.repositories.nodes.length -1].previousCursor = repositoriesCursor;
-      this.result.repositories.nodes = [
-        ...this.result.repositories.nodes,
+      core.info(`✅ Finished scanning ${lastRepositoryInResult.name}, total number of members: ${lastRepositoryInResult.collaborators.edges.length}`);
+      lastRepositoryInResult.previousCursor = repositoriesCursor;
+      result.repositories.nodes = [
+        ...result.repositories.nodes,
         currentRepository
       ]
     };
+
+    this.result[organization] = result;
     
     if(collaboratorsPage.pageInfo.hasNextPage === true) {
       let repoStartCursor = null;
-      if (collaboratorsPage.pageInfo.hasNextPage, this.result.repositories.nodes.length === 1) {
+      if (collaboratorsPage.pageInfo.hasNextPage, repositoriesInResult === 1) {
         repoStartCursor = null;
       } else {
-        repoStartCursor = this.result.repositories.nodes[this.result.repositories.nodes.length -2].previousCursor;
+        repoStartCursor = result.repositories.nodes[repositoriesInResult - 2 ].previousCursor;
       }
       await this.collectData(
+        organization,
         collaboratorsPage.pageInfo.endCursor,
         repoStartCursor
       )
@@ -229,20 +241,24 @@ class CollectUserData {
       
     if(repositoriesPage.pageInfo.hasNextPage === true) {
       await this.collectData(
+        organization,
         null,
         repositoriesPage.pageInfo.endCursor
       )
       return;
     }
 
-    this.endCollection();
+    return this.result[organization];
   }
 }
 
 const main = async () => {
   const token = core.getInput('token') || process.env.TOKEN;
-  const org = core.getInput('org') || process.env.ORG;
-  const Collector = new CollectUserData(token, org, process.env.GITHUB_REPOSITORY, {
+  const organization = core.getInput('organization') || process.env.ORGANIZATION;
+  const enterprise = core.getInput('enterprise') || process.env.ENTERPRISE;
+
+  const Collector = new CollectUserData(token, organization, enterprise, {
+    repository: process.env.GITHUB_REPOSITORY,
     postToIssue: core.getInput('issue') || process.env.ISSUE 
   })
   await Collector.startCollection();
