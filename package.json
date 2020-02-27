@@ -1,5 +1,5 @@
 {
-  "name": "org-audit-action",
+  "name": "github-membership-audit",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,15 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/org-audit-action.git"
+    "url": "git+https://github.com/svanboxel/org-audit-action.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/actions/org-audit-action/issues"
+    "url": "https://github.com/svanboxel/org-audit-action/issues"
   },
-  "homepage": "https://github.com/actions/org-audit-action#readme",
+  "homepage": "https://github.com/svanboxel/org-audit-action#readme",
   "dependencies": {
     "@actions/artifact": "^0.1.0",
     "@actions/core": "^1.2.2",

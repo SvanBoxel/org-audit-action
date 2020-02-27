@@ -5,10 +5,10 @@ inputs:
     description: 'Specify an organization if you want to audit a single org. Only specify either an organization or an enterprise account.'
     required: false
   enterprise: 
-    description: 'Specify an Enterprise Account'
+    description: 'Specify an Enterprise Account. Only specify either an organization or an enterprise account.'
     required: false
   token: 
-    description: 'Token with repo:read for the organizations targetted. If using enterprise mode, the token bearer has to be an Enterprise Account administrator'
+    description: 'Scopes required: repo, read:org, read:enterprise (if using enterprise mode)'
     required: true
   issue:
     description: 'If you want the output posted on an issue in the repo running the action'
