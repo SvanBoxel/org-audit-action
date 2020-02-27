@@ -5556,17 +5556,19 @@ const writeFileAsync = promisify(fs.writeFile)
 const ARTIFACT_FILE_NAME = 'raw-data';
 const DATA_FOLDER = './data';
 const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository collaborators."
-
+const ERROR_MESSAGE_TOKEN_UNAUTHORIZED = "Resource protected by organization SAML enforcement. You must grant your personal token access to this organization."
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 function JSONtoCSV(json) {
-  var keys = ["enterprise", "organization", "repo", "user", "login", "permission"];
+  var keys = Object.keys(json[0]);
   var csv = keys.join(',') + os.EOL;
   
-  json.forEach(function(record) {
-		keys.forEach(function(_, i) {
-			csv += record[i]
-			if(i!=keys.length - 1) csv += ',';
+  json.forEach((record) => {
+		keys.forEach((key, i) => {
+			csv += record[key]
+			if (i!=keys.length - 1) {
+        csv += ',';
+      }
 		});
 		csv += os.EOL;
   });
@@ -5666,7 +5668,11 @@ class CollectUserData {
       
       return data;
     } catch (error) {
-      if (error && error.message == ERROR_MESSAGE_ARCHIVED_REPO) {
+      if (error.message === ERROR_MESSAGE_TOKEN_UNAUTHORIZED) {
+        core.info(`⏸  The token you use isn't authorized to be used with ${organization}`);  
+        return null;
+      } 
+      if (error.message == ERROR_MESSAGE_ARCHIVED_REPO) {
         core.info(`⏸  Skipping archived repository ${error.data.organization.repositories.nodes[0].name}`);  
         let data = await this.requestOrganizationData(organization, null, error.data.organization.repositories.pageInfo.endCursor)        
         return data
@@ -5702,6 +5708,11 @@ class CollectUserData {
   async endCollection() {
     this.normalizeResult();
     const json = this.normalizedData;
+    
+    if (!json.length) {
+      return core.setFailed(`⚠️  No data collected. Stopping action`);
+    }
+
     const csv = JSONtoCSV(json);
 
     await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.json`, JSON.stringify(json))
@@ -5713,7 +5724,7 @@ class CollectUserData {
   }
 
   normalizeResult() {
-    core.info(`Normalizing result.`);
+    core.info(`⚛  Normalizing result.`);
     Object.keys(this.result).forEach(organization => {
       if (!this.result[organization] || !this.result[organization].repositories) {
         return;
