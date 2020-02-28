@@ -4,8 +4,9 @@ const github = require('@actions/github');
 const { graphql } = require("@octokit/graphql");
 const csvToMarkdown = require('csv-to-markdown-table');
 const fs = require('fs');
-const os = require('os');
 const { promisify } = require('util')
+
+const { JSONtoCSV } = require('./utils')
 const { organizationQuery, enterpriseQuery } = require('./queries');
 
 const writeFileAsync = promisify(fs.writeFile)
@@ -16,23 +17,6 @@ const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository co
 const ERROR_MESSAGE_TOKEN_UNAUTHORIZED = "Resource protected by organization SAML enforcement. You must grant your personal token access to this organization."
 
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
-
-function JSONtoCSV(json) {
-  var keys = Object.keys(json[0]);
-  var csv = keys.join(',') + os.EOL;
-  
-  json.forEach((record) => {
-		keys.forEach((key, i) => {
-			csv += record[key]
-			if (i!=keys.length - 1) {
-        csv += ',';
-      }
-		});
-		csv += os.EOL;
-  });
-  
-  return csv;
-}
 
 class CollectUserData {
   constructor(token, organization, enterprise, options) {
