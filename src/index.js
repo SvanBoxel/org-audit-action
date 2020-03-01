@@ -64,13 +64,15 @@ class CollectUserData {
     }
 
     const [owner, repo] = this.options.repository.split('/');
+    const reportType = this.enterprise ? 'Enterprise' : 'Organization';
+    
     let body = await csvToMarkdown(csv, ",", true)
 
     core.info(`Posting result to issue ${this.options.repository}.`);
     const { data: issue_response } = await this.octokit.issues.create({
       owner,
       repo,
-      "title": `Audit log report for ${new Date().toLocaleString()}`,
+      "title": `${reportType} audit log report for ${new Date().toLocaleString()}`,
       "body": body
     });
 

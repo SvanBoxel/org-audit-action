@@ -1,3 +1,5 @@
+const os = require('os');
+
 function JSONtoCSV(json) {
   var keys = Object.keys(json[0]);
   var csv = keys.join(',') + os.EOL;
