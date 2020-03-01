@@ -34,7 +34,7 @@ module.exports =
 /******/ 	// the startup function
 /******/ 	function startup() {
 /******/ 		// Load entry module and return exports
-/******/ 		return __webpack_require__(655);
+/******/ 		return __webpack_require__(666);
 /******/ 	};
 /******/
 /******/ 	// run startup
@@ -100,6 +100,34 @@ function authenticationBeforeRequest(state, options) {
     });
 }
 
+
+/***/ }),
+
+/***/ 5:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+const os = __webpack_require__(87);
+
+function JSONtoCSV(json) {
+  var keys = Object.keys(json[0]);
+  var csv = keys.join(',') + os.EOL;
+  
+  json.forEach((record) => {
+		keys.forEach((key, i) => {
+			csv += record[key]
+			if (i!=keys.length - 1) {
+        csv += ',';
+      }
+		});
+		csv += os.EOL;
+  });
+  
+  return csv;
+}
+
+module.exports = {
+  JSONtoCSV
+};
 
 /***/ }),
 
@@ -3447,6 +3475,57 @@ if (true) {
 
 /***/ }),
 
+/***/ 389:
+/***/ (function(module) {
+
+const MAX_COLLABORATORS_PER_CALL = 50;
+
+const queries = {
+  organizationQuery: `
+    query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
+      organization(login: $organization) {
+        repositories (first: 1, after: $repositoriesCursor) {
+          pageInfo {
+            startCursor
+            endCursor
+            hasNextPage
+          }
+          nodes {
+            name
+            collaborators(first: ${MAX_COLLABORATORS_PER_CALL}, after: $collaboratorsCursor, affiliation: ALL) {
+              pageInfo {
+                endCursor
+                hasNextPage
+              }
+              edges {
+                node {
+                  name
+                  login
+                }
+                permission
+              }
+            }
+          }
+        }
+      }
+    }`,
+  enterpriseQuery: `
+    query ($enterprise: String!) {
+      enterprise(slug: $enterprise) {
+        organizations(first: 100) {
+          nodes {
+            login
+          }
+        }
+      }
+    }
+ `
+}
+
+module.exports = queries
+
+/***/ }),
+
 /***/ 391:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -5534,297 +5613,6 @@ function getUploadSpecification(artifactName, rootDirectory, artifactFiles) {
 }
 exports.getUploadSpecification = getUploadSpecification;
 //# sourceMappingURL=internal-upload-specification.js.map
-
-/***/ }),
-
-/***/ 655:
-/***/ (function(__unusedmodule, __unusedexports, __webpack_require__) {
-
-const core = __webpack_require__(327);
-const artifact = __webpack_require__(483);
-const github = __webpack_require__(119);
-const { graphql } = __webpack_require__(754);
-const csvToMarkdown = __webpack_require__(377);
-const fs = __webpack_require__(747);
-const os = __webpack_require__(87);
-const { promisify } = __webpack_require__(669)
-
-const { organizationQuery, enterpriseQuery } = __webpack_require__(948);
-
-const writeFileAsync = promisify(fs.writeFile)
-
-const ARTIFACT_FILE_NAME = 'raw-data';
-const DATA_FOLDER = './data';
-const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository collaborators."
-const ERROR_MESSAGE_TOKEN_UNAUTHORIZED = "Resource protected by organization SAML enforcement. You must grant your personal token access to this organization."
-!fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
-
-function JSONtoCSV(json) {
-  var keys = Object.keys(json[0]);
-  var csv = keys.join(',') + os.EOL;
-  
-  json.forEach((record) => {
-		keys.forEach((key, i) => {
-			csv += record[key]
-			if (i!=keys.length - 1) {
-        csv += ',';
-      }
-		});
-		csv += os.EOL;
-  });
-  
-  return csv;
-}
-
-class CollectUserData {
-  constructor(token, organization, enterprise, options) {
-    this.validateInput(organization, enterprise);
-
-    this.organizations = [{ login: organization }];
-    this.enterprise = enterprise;
-    this.options = options; 
-    this.result = options.data || {};
-    this.normalizedData = []
-
-    this.initiateGraphQLClient(token);
-    this.initiateOctokit(token);
-  }
-  
-  validateInput(organization, enterprise) {
-    if (organization && enterprise) {
-      core.setFailed('The organization and enterprise parameter are mutually exclusive.');
-      process.exit();
-    }
-  }
-
-  async createandUploadArtifacts() {
-    if (!process.env.GITHUB_RUN_NUMBER) {
-      return core.debug('not running in actions, skipping artifact upload')
-    }
-
-    const artifactClient = artifact.create()
-    const artifactName = `user-report-${new Date().getTime()}`;
-    const files = [
-      `./data/${ARTIFACT_FILE_NAME}.json`,
-      `./data/${ARTIFACT_FILE_NAME}.csv`
-    ]
-    const rootDirectory = './'
-    const options = { continueOnError: true }
-
-    const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
-    return uploadResult;
-  }
-
-  async postResultsToIssue(csv) {
-    if (!this.options.postToIssue) {
-      return core.info(`Skipping posting result to issue ${this.options.repository}.`);
-    }
-
-    const [owner, repo] = this.options.repository.split('/');
-    let body = await csvToMarkdown(csv, ",", true)
-
-    core.info(`Posting result to issue ${this.options.repository}.`);
-    const { data: issue_response } = await this.octokit.issues.create({
-      owner,
-      repo,
-      "title": `Audit log report for ${new Date().toLocaleString()}`,
-      "body": body
-    });
-
-    core.info(issue_response);
-    await this.octokit.issues.update({
-      owner,
-      repo,
-      "issue_number" : issue_response.number,
-      "state": "closed"
-    });
-  }
-
-  initiateGraphQLClient(token) {
-    this.graphqlClient = graphql.defaults({
-      headers: {
-        authorization: `token ${token}`
-      }
-    });
-  }
-
-  initiateOctokit(token) {
-    this.octokit = new github.GitHub(token);
-  }
-  
-  async requestEnterpriseData() {
-    const { enterprise } = await this.graphqlClient(enterpriseQuery, { enterprise: this.enterprise });
-    return enterprise;
-  }
-
-  async requestOrganizationData (organization, collaboratorsCursor = null, repositoriesCursor = null) {
-    try {
-      const { organization: data } = await this.graphqlClient(organizationQuery, 
-      {
-        organization,
-        collaboratorsCursor,
-        repositoriesCursor
-      });
-      
-      return data;
-    } catch (error) {
-      if (error.message === ERROR_MESSAGE_TOKEN_UNAUTHORIZED) {
-        core.info(`⏸  The token you use isn't authorized to be used with ${organization}`);  
-        return null;
-      } 
-      if (error.message == ERROR_MESSAGE_ARCHIVED_REPO) {
-        core.info(`⏸  Skipping archived repository ${error.data.organization.repositories.nodes[0].name}`);  
-        let data = await this.requestOrganizationData(organization, null, error.data.organization.repositories.pageInfo.endCursor)        
-        return data
-      }
-      return null;
-    }
-  }
-  
-  async startCollection() {
-    if (this.enterprise) {
-      const enterpriseData = await this.requestEnterpriseData();
-      this.organizations = enterpriseData.organizations.nodes;
-    }
-
-    try {
-      for(const { login } of this.organizations) {
-        core.startGroup(`🔍 Start collecting for organization ${login}.`)
-        this.result[login] = null;
-        await this.collectData(login);
-
-        if (this.result[login]) {
-          core.info(`✅ Finished collecting for organization ${login}, total number of repos: ${this.result[login].repositories.nodes.length}`);
-          core.endGroup()
-        }
-      }
-
-      await this.endCollection();
-    } catch(err) {
-      console.log(err)
-      await this.endCollection();
-    }
-  }
-
-  async endCollection() {
-    this.normalizeResult();
-    const json = this.normalizedData;
-    
-    if (!json.length) {
-      return core.setFailed(`⚠️  No data collected. Stopping action`);
-    }
-
-    const csv = JSONtoCSV(json);
-
-    await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.json`, JSON.stringify(json))
-    await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`, JSON.stringify(csv))
-
-    await this.createandUploadArtifacts();
-    await this.postResultsToIssue(csv)
-    process.exit();
-  }
-
-  normalizeResult() {
-    core.info(`⚛  Normalizing result.`);
-    Object.keys(this.result).forEach(organization => {
-      if (!this.result[organization] || !this.result[organization].repositories) {
-        return;
-      }
-      this.result[organization].repositories.nodes.forEach(repository => {   
-        if (!repository.collaborators.edges) {
-          return;
-        }     
-
-        repository.collaborators.edges.forEach(collaborator => {
-          this.normalizedData.push({
-            ...(this.enterprise ? {enterprise: this.enterprise} : null),
-            organization,
-            repository: repository.name,
-            name: collaborator.node.name,
-            login: collaborator.node.login,
-            permission: collaborator.permission 
-          })
-        })        
-      })
-    })
-  }
-  
-  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
-    const data = await this.requestOrganizationData(organization, collaboratorsCursor, repositoriesCursor);
-    if(!data || !data.repositories.nodes.length) {
-      core.info(`⏸  No data found for ${organization}, probably you don't have the right permission`);  
-      return;
-    }
-
-    const repositoriesPage = data.repositories;
-    const currentRepository = repositoriesPage.nodes[0];
-    const collaboratorsPage = currentRepository.collaborators;
-    let result = this.result[organization] ? this.result[organization] : data;
-
-    const repositoriesInResult = result.repositories.nodes.length;
-    const lastRepositoryInResult = result.repositories.nodes[repositoriesInResult - 1];
-    if (result && currentRepository.name ===lastRepositoryInResult.name) {
-      lastRepositoryInResult.collaborators.edges = [
-        ...lastRepositoryInResult.collaborators.edges,
-        ...collaboratorsPage.edges
-      ]
-      core.info(`⏳ Still scanning ${currentRepository.name}, current member count: ${lastRepositoryInResult.collaborators.edges.length}`);
-    } else {
-      core.info(`✅ Finished scanning ${lastRepositoryInResult.name}, total number of members: ${lastRepositoryInResult.collaborators.edges.length}`);
-      lastRepositoryInResult.previousCursor = repositoriesCursor;
-      result.repositories.nodes = [
-        ...result.repositories.nodes,
-        currentRepository
-      ]
-    };
-
-    this.result[organization] = result;
-    
-    if(collaboratorsPage.pageInfo.hasNextPage === true) {
-      let repoStartCursor = null;
-      if (collaboratorsPage.pageInfo.hasNextPage, repositoriesInResult === 1) {
-        repoStartCursor = null;
-      } else {
-        repoStartCursor = result.repositories.nodes[repositoriesInResult - 2 ].previousCursor;
-      }
-      await this.collectData(
-        organization,
-        collaboratorsPage.pageInfo.endCursor,
-        repoStartCursor
-      )
-      return;
-    }
-      
-    if(repositoriesPage.pageInfo.hasNextPage === true) {
-      await this.collectData(
-        organization,
-        null,
-        repositoriesPage.pageInfo.endCursor
-      )
-      return;
-    }
-
-    return this.result[organization];
-  }
-}
-
-const main = async () => {
-  const token = core.getInput('token') || process.env.TOKEN;
-  const organization = core.getInput('organization') || process.env.ORGANIZATION;
-  const enterprise = core.getInput('enterprise') || process.env.ENTERPRISE;
-
-  const Collector = new CollectUserData(token, organization, enterprise, {
-    repository: process.env.GITHUB_REPOSITORY,
-    postToIssue: core.getInput('issue') || process.env.ISSUE 
-  })
-  await Collector.startCollection();
-}
-
-try {
-  main();
-} catch (error) {
-  core.setFailed(error.message);
-}
 
 /***/ }),
 
@@ -19097,6 +18885,288 @@ exports.restEndpointMethods = restEndpointMethods;
 
 /***/ }),
 
+/***/ 666:
+/***/ (function(__unusedmodule, __unusedexports, __webpack_require__) {
+
+const core = __webpack_require__(327);
+const artifact = __webpack_require__(483);
+const github = __webpack_require__(119);
+const { graphql } = __webpack_require__(754);
+const csvToMarkdown = __webpack_require__(377);
+const fs = __webpack_require__(747);
+const { promisify } = __webpack_require__(669)
+
+const { JSONtoCSV } = __webpack_require__(5)
+const { organizationQuery, enterpriseQuery } = __webpack_require__(389);
+
+const writeFileAsync = promisify(fs.writeFile)
+
+const ARTIFACT_FILE_NAME = 'raw-data';
+const DATA_FOLDER = './data';
+const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository collaborators."
+const ERROR_MESSAGE_TOKEN_UNAUTHORIZED = "Resource protected by organization SAML enforcement. You must grant your personal token access to this organization."
+
+!fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
+
+class CollectUserData {
+  constructor(token, organization, enterprise, options) {
+    this.validateInput(organization, enterprise);
+
+    this.organizations = [{ login: organization }];
+    this.enterprise = enterprise;
+    this.options = options; 
+    this.result = options.data || {};
+    this.normalizedData = []
+    this.trackedLastRepoCursor = null; 
+
+    this.initiateGraphQLClient(token);
+    this.initiateOctokit(token);
+  }
+  
+  validateInput(organization, enterprise) {
+    if (organization && enterprise) {
+      core.setFailed('The organization and enterprise parameter are mutually exclusive.');
+      process.exit();
+    }
+  }
+
+  async createandUploadArtifacts() {
+    if (!process.env.GITHUB_RUN_NUMBER) {
+      return core.debug('not running in actions, skipping artifact upload')
+    }
+
+    const artifactClient = artifact.create()
+    const artifactName = `user-report-${new Date().getTime()}`;
+    const files = [
+      `./data/${ARTIFACT_FILE_NAME}.json`,
+      `./data/${ARTIFACT_FILE_NAME}.csv`
+    ]
+    const rootDirectory = './'
+    const options = { continueOnError: true }
+
+    const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
+    return uploadResult;
+  }
+
+  async postResultsToIssue(csv) {
+    if (!this.options.postToIssue) {
+      return core.info(`Skipping posting result to issue ${this.options.repository}.`);
+    }
+
+    const [owner, repo] = this.options.repository.split('/');
+    const reportType = this.enterprise ? 'Enterprise' : 'Organization';
+    
+    let body = await csvToMarkdown(csv, ",", true)
+
+    core.info(`Posting result to issue ${this.options.repository}.`);
+    const { data: issue_response } = await this.octokit.issues.create({
+      owner,
+      repo,
+      "title": `${reportType} audit log report for ${new Date().toLocaleString()}`,
+      "body": body
+    });
+
+    core.info(issue_response);
+    await this.octokit.issues.update({
+      owner,
+      repo,
+      "issue_number" : issue_response.number,
+      "state": "closed"
+    });
+  }
+
+  initiateGraphQLClient(token) {
+    this.graphqlClient = graphql.defaults({
+      headers: {
+        authorization: `token ${token}`
+      }
+    });
+  }
+
+  initiateOctokit(token) {
+    this.octokit = new github.GitHub(token);
+  }
+  
+  async requestEnterpriseData() {
+    const { enterprise } = await this.graphqlClient(enterpriseQuery, { enterprise: this.enterprise });
+    return enterprise;
+  }
+
+  async requestOrganizationData (organization, collaboratorsCursor = null, repositoriesCursor = null) {
+      const { organization: data } = await this.graphqlClient(organizationQuery, 
+      {
+        organization,
+        collaboratorsCursor,
+        repositoriesCursor
+      });
+      
+      return data;
+  }
+
+  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
+    let data;
+    try {
+      data = await this.requestOrganizationData(organization, collaboratorsCursor, repositoriesCursor);
+    } catch (error) {
+      if (error.message === ERROR_MESSAGE_TOKEN_UNAUTHORIZED) {
+        core.info(`⏸  The token you use isn't authorized to be used with ${organization}`);  
+        return null;
+      } 
+      if (error.message == ERROR_MESSAGE_ARCHIVED_REPO) {
+        core.info(`⏸  Skipping archived repository ${error.data.organization.repositories.nodes[0].name}`);  
+        await this.collectData(organization, null, error.data.organization.repositories.pageInfo.endCursor)  
+        return;       
+      }
+    } finally {
+      if(!data || !data.repositories.nodes.length) {
+        core.info(`⏸  No data found for ${organization}, probably you don't have the right permission`);  
+        return;
+      }
+  
+      const repositoriesPage = data.repositories;
+      const currentRepository = repositoriesPage.nodes[0];
+      const collaboratorsPage = currentRepository.collaborators;
+      let result;
+      if (!this.result[organization]) {
+        result = this.result[organization] = data;
+        this.trackedLastRepoCursor = repositoriesCursor;
+      } else {
+        result = this.result[organization];  
+        
+        const repositoriesInResult = result.repositories.nodes.length;
+        const lastRepositoryInResult = result.repositories.nodes[repositoriesInResult - 1];
+
+        if (result && currentRepository.name === lastRepositoryInResult.name) {
+          lastRepositoryInResult.collaborators.edges = [
+            ...lastRepositoryInResult.collaborators.edges,
+            ...collaboratorsPage.edges
+          ]
+          
+        } else {
+          this.trackedLastRepoCursor = repositoriesCursor;
+          result.repositories.nodes = [
+            ...result.repositories.nodes,
+            currentRepository
+          ]
+        };
+      }
+  
+      this.result[organization] = result;
+      
+      if(collaboratorsPage.pageInfo.hasNextPage === true) {
+        let repoStartCursor = this.trackedLastRepoCursor;
+        core.info(`⏳ Still scanning ${currentRepository.name}, current member count: ${result.repositories.nodes[result.repositories.nodes.length - 1].collaborators.edges.length}`);
+        await this.collectData(
+          organization,
+          collaboratorsPage.pageInfo.endCursor,
+          repoStartCursor
+        )
+        return;
+      }
+      core.info(`✅ Finished scanning ${result.repositories.nodes[result.repositories.nodes.length - 1].name}, total number of members: ${result.repositories.nodes[result.repositories.nodes.length - 1].collaborators.edges.length}`);
+        
+      if(repositoriesPage.pageInfo.hasNextPage === true) {
+        await this.collectData(
+          organization,
+          null,
+          repositoriesPage.pageInfo.endCursor
+        )
+        return;
+      }
+  
+      return this.result[organization];
+    }
+  }
+
+  async startCollection() {
+    if (this.enterprise) {
+      const enterpriseData = await this.requestEnterpriseData();
+      this.organizations = enterpriseData.organizations.nodes;
+    }
+
+    try {
+      for(const { login } of this.organizations) {
+        core.startGroup(`🔍 Start collecting for organization ${login}.`)
+        this.result[login] = null;
+        await this.collectData(login);
+
+        if (this.result[login]) {
+          core.info(`✅ Finished collecting for organization ${login}, total number of repos: ${this.result[login].repositories.nodes.length}`);
+          core.endGroup()
+        }
+      }
+
+      await this.endCollection();
+    } catch(err) {
+      console.log(err)
+      await this.endCollection();
+    }
+  }
+
+  async endCollection() {
+    this.normalizeResult();
+    const json = this.normalizedData;
+    
+    if (!json.length) {
+      return core.setFailed(`⚠️  No data collected. Stopping action`);
+    }
+
+    const csv = JSONtoCSV(json);
+
+    await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.json`, JSON.stringify(json))
+    await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`, JSON.stringify(csv))
+
+    await this.createandUploadArtifacts();
+    await this.postResultsToIssue(csv)
+    process.exit();
+  }
+
+  normalizeResult() {
+    core.info(`⚛  Normalizing result.`);
+    Object.keys(this.result).forEach(organization => {
+      if (!this.result[organization] || !this.result[organization].repositories) {
+        return;
+      }
+      this.result[organization].repositories.nodes.forEach(repository => {   
+        if (!repository.collaborators.edges) {
+          return;
+        }     
+
+        repository.collaborators.edges.forEach(collaborator => {
+          this.normalizedData.push({
+            ...(this.enterprise ? {enterprise: this.enterprise} : null),
+            organization,
+            repository: repository.name,
+            name: collaborator.node.name,
+            login: collaborator.node.login,
+            permission: collaborator.permission 
+          })
+        })        
+      })
+    })
+  }
+}
+
+const main = async () => {
+  const token = core.getInput('token') || process.env.TOKEN;
+  const organization = core.getInput('organization') || process.env.ORGANIZATION;
+  const enterprise = core.getInput('enterprise') || process.env.ENTERPRISE;
+
+  const Collector = new CollectUserData(token, organization, enterprise, {
+    repository: process.env.GITHUB_REPOSITORY,
+    postToIssue: core.getInput('issue') || process.env.ISSUE 
+  })
+  await Collector.startCollection();
+}
+
+try {
+  main();
+} catch (error) {
+  core.setFailed(error.message);
+}
+
+/***/ }),
+
 /***/ 669:
 /***/ (function(module) {
 
@@ -26395,55 +26465,6 @@ function errname(uv, code) {
 }
 
 
-
-/***/ }),
-
-/***/ 948:
-/***/ (function(module) {
-
-const queries = {
-  organizationQuery: `
-    query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
-      organization(login: $organization) {
-        repositories (first: 1, after: $repositoriesCursor) {
-          pageInfo {
-            startCursor
-            endCursor
-            hasNextPage
-          }
-          nodes {
-            name
-            collaborators(first: 50, after: $collaboratorsCursor, affiliation: ALL) {
-              pageInfo {
-                endCursor
-                hasNextPage
-              }
-              edges {
-                node {
-                  name
-                  login
-                }
-                permission
-              }
-            }
-          }
-        }
-      }
-    }`,
-  enterpriseQuery: `
-    query ($enterprise: String!) {
-      enterprise(slug: $enterprise) {
-        organizations(first: 100) {
-          nodes {
-            login
-          }
-        }
-      }
-    }
- `
-}
-
-module.exports = queries
 
 /***/ }),
 
