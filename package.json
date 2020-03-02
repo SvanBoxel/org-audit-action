@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "build": "ncc build src/index.js --minify",
+    "lint": "npx prettier ./src/*.js --check",
+    "lint:fix": "npx prettier ./src/*.js --write"
   },
   "repository": {
     "type": "git",
@@ -26,5 +29,8 @@
     "@octokit/rest": "^17.0.0",
     "csv-to-markdown-table": "1.1.0",
     "csv2md": "1.0.1"
+  },
+  "devDependencies": {
+    "prettier": "1.19.1"
   }
 }
