@@ -40,6 +40,6 @@ const queries = {
       }
     }
  `
-}
+};
 
-module.exports = queries
+module.exports = queries;
