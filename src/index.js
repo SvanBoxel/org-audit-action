@@ -4,9 +4,9 @@ const github = require('@actions/github');
 const { graphql } = require("@octokit/graphql");
 const csvToMarkdown = require('csv-to-markdown-table');
 const fs = require('fs');
-const os = require('os');
 const { promisify } = require('util')
 
+const { JSONtoCSV } = require('./utils')
 const { organizationQuery, enterpriseQuery } = require('./queries');
 
 const writeFileAsync = promisify(fs.writeFile)
@@ -15,24 +15,8 @@ const ARTIFACT_FILE_NAME = 'raw-data';
 const DATA_FOLDER = './data';
 const ERROR_MESSAGE_ARCHIVED_REPO = "Must have push access to view repository collaborators."
 const ERROR_MESSAGE_TOKEN_UNAUTHORIZED = "Resource protected by organization SAML enforcement. You must grant your personal token access to this organization."
-!fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
-function JSONtoCSV(json) {
-  var keys = Object.keys(json[0]);
-  var csv = keys.join(',') + os.EOL;
-  
-  json.forEach((record) => {
-		keys.forEach((key, i) => {
-			csv += record[key]
-			if (i!=keys.length - 1) {
-        csv += ',';
-      }
-		});
-		csv += os.EOL;
-  });
-  
-  return csv;
-}
+!fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 class CollectUserData {
   constructor(token, organization, enterprise, options) {
@@ -43,6 +27,7 @@ class CollectUserData {
     this.options = options; 
     this.result = options.data || {};
     this.normalizedData = []
+    this.trackedLastRepoCursor = null; 
 
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
@@ -79,13 +64,15 @@ class CollectUserData {
     }
 
     const [owner, repo] = this.options.repository.split('/');
+    const reportType = this.enterprise ? 'Enterprise' : 'Organization';
+    
     let body = await csvToMarkdown(csv, ",", true)
 
     core.info(`Posting result to issue ${this.options.repository}.`);
     const { data: issue_response } = await this.octokit.issues.create({
       owner,
       repo,
-      "title": `Audit log report for ${new Date().toLocaleString()}`,
+      "title": `${reportType} audit log report for ${new Date().toLocaleString()}`,
       "body": body
     });
 
@@ -116,7 +103,6 @@ class CollectUserData {
   }
 
   async requestOrganizationData (organization, collaboratorsCursor = null, repositoriesCursor = null) {
-    try {
       const { organization: data } = await this.graphqlClient(organizationQuery, 
       {
         organization,
@@ -125,6 +111,12 @@ class CollectUserData {
       });
       
       return data;
+  }
+
+  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
+    let data;
+    try {
+      data = await this.requestOrganizationData(organization, collaboratorsCursor, repositoriesCursor);
     } catch (error) {
       if (error.message === ERROR_MESSAGE_TOKEN_UNAUTHORIZED) {
         core.info(`⏸  The token you use isn't authorized to be used with ${organization}`);  
@@ -132,13 +124,70 @@ class CollectUserData {
       } 
       if (error.message == ERROR_MESSAGE_ARCHIVED_REPO) {
         core.info(`⏸  Skipping archived repository ${error.data.organization.repositories.nodes[0].name}`);  
-        let data = await this.requestOrganizationData(organization, null, error.data.organization.repositories.pageInfo.endCursor)        
-        return data
+        await this.collectData(organization, null, error.data.organization.repositories.pageInfo.endCursor)  
+        return;       
       }
-      return null;
+    } finally {
+      if(!data || !data.repositories.nodes.length) {
+        core.info(`⏸  No data found for ${organization}, probably you don't have the right permission`);  
+        return;
+      }
+  
+      const repositoriesPage = data.repositories;
+      const currentRepository = repositoriesPage.nodes[0];
+      const collaboratorsPage = currentRepository.collaborators;
+      let result;
+      if (!this.result[organization]) {
+        result = this.result[organization] = data;
+        this.trackedLastRepoCursor = repositoriesCursor;
+      } else {
+        result = this.result[organization];  
+        
+        const repositoriesInResult = result.repositories.nodes.length;
+        const lastRepositoryInResult = result.repositories.nodes[repositoriesInResult - 1];
+
+        if (result && currentRepository.name === lastRepositoryInResult.name) {
+          lastRepositoryInResult.collaborators.edges = [
+            ...lastRepositoryInResult.collaborators.edges,
+            ...collaboratorsPage.edges
+          ]
+          
+        } else {
+          this.trackedLastRepoCursor = repositoriesCursor;
+          result.repositories.nodes = [
+            ...result.repositories.nodes,
+            currentRepository
+          ]
+        };
+      }
+  
+      this.result[organization] = result;
+      
+      if(collaboratorsPage.pageInfo.hasNextPage === true) {
+        let repoStartCursor = this.trackedLastRepoCursor;
+        core.info(`⏳ Still scanning ${currentRepository.name}, current member count: ${result.repositories.nodes[result.repositories.nodes.length - 1].collaborators.edges.length}`);
+        await this.collectData(
+          organization,
+          collaboratorsPage.pageInfo.endCursor,
+          repoStartCursor
+        )
+        return;
+      }
+      core.info(`✅ Finished scanning ${result.repositories.nodes[result.repositories.nodes.length - 1].name}, total number of members: ${result.repositories.nodes[result.repositories.nodes.length - 1].collaborators.edges.length}`);
+        
+      if(repositoriesPage.pageInfo.hasNextPage === true) {
+        await this.collectData(
+          organization,
+          null,
+          repositoriesPage.pageInfo.endCursor
+        )
+        return;
+      }
+  
+      return this.result[organization];
     }
   }
-  
+
   async startCollection() {
     if (this.enterprise) {
       const enterpriseData = await this.requestEnterpriseData();
@@ -205,64 +254,6 @@ class CollectUserData {
         })        
       })
     })
-  }
-  
-  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
-    const data = await this.requestOrganizationData(organization, collaboratorsCursor, repositoriesCursor);
-    if(!data || !data.repositories.nodes.length) {
-      core.info(`⏸  No data found for ${organization}, probably you don't have the right permission`);  
-      return;
-    }
-
-    const repositoriesPage = data.repositories;
-    const currentRepository = repositoriesPage.nodes[0];
-    const collaboratorsPage = currentRepository.collaborators;
-    let result = this.result[organization] ? this.result[organization] : data;
-
-    const repositoriesInResult = result.repositories.nodes.length;
-    const lastRepositoryInResult = result.repositories.nodes[repositoriesInResult - 1];
-    if (result && currentRepository.name ===lastRepositoryInResult.name) {
-      lastRepositoryInResult.collaborators.edges = [
-        ...lastRepositoryInResult.collaborators.edges,
-        ...collaboratorsPage.edges
-      ]
-      core.info(`⏳ Still scanning ${currentRepository.name}, current member count: ${lastRepositoryInResult.collaborators.edges.length}`);
-    } else {
-      core.info(`✅ Finished scanning ${lastRepositoryInResult.name}, total number of members: ${lastRepositoryInResult.collaborators.edges.length}`);
-      lastRepositoryInResult.previousCursor = repositoriesCursor;
-      result.repositories.nodes = [
-        ...result.repositories.nodes,
-        currentRepository
-      ]
-    };
-
-    this.result[organization] = result;
-    
-    if(collaboratorsPage.pageInfo.hasNextPage === true) {
-      let repoStartCursor = null;
-      if (collaboratorsPage.pageInfo.hasNextPage, repositoriesInResult === 1) {
-        repoStartCursor = null;
-      } else {
-        repoStartCursor = result.repositories.nodes[repositoriesInResult - 2 ].previousCursor;
-      }
-      await this.collectData(
-        organization,
-        collaboratorsPage.pageInfo.endCursor,
-        repoStartCursor
-      )
-      return;
-    }
-      
-    if(repositoriesPage.pageInfo.hasNextPage === true) {
-      await this.collectData(
-        organization,
-        null,
-        repositoriesPage.pageInfo.endCursor
-      )
-      return;
-    }
-
-    return this.result[organization];
   }
 }
 
