@@ -103,6 +103,12 @@ jobs:
         issue: true
 ```
 
+## Local testing
+You can test this action locally by using the following command:
+```
+TOKEN=<github_token> ORGANIZATION=<organization name (or use ENTERPRISE=<enterprise_name>)> GITHUB_REPOSITORY=<owner>/<repository> node src/index.js
+```
+
 ## Help us improve it
 
 Open an issue on: https://github.com/svanboxel/org-audit-action
