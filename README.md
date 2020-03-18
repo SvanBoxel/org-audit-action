@@ -1,6 +1,6 @@
 # GitHub Membership Audit Action
 
-GitHub Action that provides an Enterprise Account or Organization Audit of members, repositories and which have these have. The output of this action is a published CSV file in the Actions tab. The user can also configure the action to publish the results to an issue. 
+GitHub Action that provides an Enterprise Account or Organization Audit of members, repositories and which permissions these members have. The output of this action is a published CSV file in the Actions tab. The user can also configure the action to publish the results to an issue. 
 
 The output looks like this running on `enterprise` mode:
 
