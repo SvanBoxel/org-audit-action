@@ -3,7 +3,6 @@ const os = require("os");
 function JSONtoCSV(json) {
   var keys = Object.keys(json[0]);
   var csv = keys.join(",") + os.EOL;
-
   json.forEach(record => {
     keys.forEach((key, i) => {
       csv += record[key];
@@ -13,7 +12,6 @@ function JSONtoCSV(json) {
     });
     csv += os.EOL;
   });
-
   return csv;
 }
 
