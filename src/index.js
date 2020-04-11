@@ -273,7 +273,7 @@ class CollectUserData {
     );
     await writeFileAsync(
       `${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`,
-      JSON.stringify(csv)
+      csv
     );
 
     await this.createandUploadArtifacts();
