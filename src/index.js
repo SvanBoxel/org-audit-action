@@ -290,18 +290,30 @@ class CollectUserData {
       ) {
         return;
       }
+      let samlIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
+
       this.result[organization].repositories.nodes.forEach(repository => {
         if (!repository.collaborators.edges) {
           return;
         }
 
         repository.collaborators.edges.forEach(collaborator => {
+
+          // map collaborator login to samlIdentity
+          let samlIdentity = "";
+          samlIdentities.edges.forEach(identity => {
+            if (identity.node.user.login == collaborator.node.login) {
+                samlIdentity = identity.node.samlIdentity.nameId;
+            }
+          })
+
           this.normalizedData.push({
             ...(this.enterprise ? { enterprise: this.enterprise } : null),
             organization,
             repository: repository.name,
             name: collaborator.node.name,
             login: collaborator.node.login,
+            samlIdentity: samlIdentity,
             permission: collaborator.permission
           });
         });

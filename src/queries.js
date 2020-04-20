@@ -4,6 +4,26 @@ const queries = {
   organizationQuery: `
     query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
       organization(login: $organization) {
+        name
+        samlIdentityProvider {
+          externalIdentities(first: 100) {
+            pageInfo {
+              startCursor
+              endCursor
+              hasNextPage
+            }
+            edges {
+              node {
+                samlIdentity {
+                  nameId
+                }
+                user {
+                  login
+                }
+              }
+            }
+          }
+        }
         repositories (first: 1, after: $repositoriesCursor) {
           pageInfo {
             startCursor
