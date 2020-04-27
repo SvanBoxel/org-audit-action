@@ -74,6 +74,8 @@ class CollectUserData {
       );
     }
 
+    console.log("options = ", options);
+
     const [owner, repo] = this.options.repository.split("/");
     const reportType = this.enterprise ? "Enterprise" : "Organization";
 
@@ -290,22 +292,40 @@ class CollectUserData {
       ) {
         return;
       }
-      let samlIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
+      let samlIdentities;
+      if (this.result[organization].samlIdentityProvider) {
+        console.log("there is a samlIdentityProvider")
+        samlIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
+        console.log("samlIdentities first = ", samlIdentities);
 
+      }
+      else {
+        console.log("there is no samlIdentityProvider")
+      }
+      // let samlIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
+      // let  samlIdentities = (this.result[organization].samlIdentityProvider ? this.result[organization].samlIdentityProvider.externalIdentities : null );
+      console.log("samlIdentities second = ", samlIdentities);
       this.result[organization].repositories.nodes.forEach(repository => {
         if (!repository.collaborators.edges) {
           return;
         }
 
         repository.collaborators.edges.forEach(collaborator => {
-
           // map collaborator login to samlIdentity
-          let samlIdentity = "";
-          samlIdentities.edges.forEach(identity => {
-            if (identity.node.user.login == collaborator.node.login) {
-                samlIdentity = identity.node.samlIdentity.nameId;
+          let samlIdentity;
+          // if (samlIdentities != null) {
+            if (this.result[organization].samlIdentityProvider) {
+              samlIdentity = "";
+              samlIdentities.edges.forEach(identity => {
+                if (identity.node.user.login == collaborator.node.login) {
+                    samlIdentity = identity.node.samlIdentity.nameId;
+                    console.log("(inside loop) samlIdentity = ", samlIdentity);
+                }
+              })
             }
-          })
+
+          // }
+          console.log("samlIdentity = ", samlIdentity);
 
           this.normalizedData.push({
             ...(this.enterprise ? { enterprise: this.enterprise } : null),
@@ -313,7 +333,8 @@ class CollectUserData {
             repository: repository.name,
             name: collaborator.node.name,
             login: collaborator.node.login,
-            samlIdentity: samlIdentity,
+            // samlIdentity: samlIdentity,
+            ...(this.result[organization].samlIdentityProvider ? { samlIdentity: samlIdentity } : null),
             permission: collaborator.permission
           });
         });

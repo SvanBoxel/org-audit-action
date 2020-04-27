@@ -4,7 +4,6 @@ const queries = {
   organizationQuery: `
     query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
       organization(login: $organization) {
-        name
         samlIdentityProvider {
           externalIdentities(first: 100) {
             pageInfo {
