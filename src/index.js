@@ -74,8 +74,6 @@ class CollectUserData {
       );
     }
 
-    console.log("options = ", options);
-
     const [owner, repo] = this.options.repository.split("/");
     const reportType = this.enterprise ? "Enterprise" : "Organization";
 
@@ -285,6 +283,11 @@ class CollectUserData {
 
   normalizeResult() {
     core.info(`⚛  Normalizing result.`);
+    
+    // if samlIdentities selected + samlIdentities exist, proceed
+    console.log("core.getInput.samlIdentity = ", core.getInput("samlIdentities"));
+    console.log("process.env.samlIdentities = ", process.env.samlIdentities);
+
     Object.keys(this.result).forEach(organization => {
       if (
         !this.result[organization] ||
@@ -292,19 +295,10 @@ class CollectUserData {
       ) {
         return;
       }
-      let samlIdentities;
+      let externalIdentities;
       if (this.result[organization].samlIdentityProvider) {
-        console.log("there is a samlIdentityProvider")
-        samlIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
-        console.log("samlIdentities first = ", samlIdentities);
-
+        externalIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
       }
-      else {
-        console.log("there is no samlIdentityProvider")
-      }
-      // let samlIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
-      // let  samlIdentities = (this.result[organization].samlIdentityProvider ? this.result[organization].samlIdentityProvider.externalIdentities : null );
-      console.log("samlIdentities second = ", samlIdentities);
       this.result[organization].repositories.nodes.forEach(repository => {
         if (!repository.collaborators.edges) {
           return;
@@ -313,19 +307,14 @@ class CollectUserData {
         repository.collaborators.edges.forEach(collaborator => {
           // map collaborator login to samlIdentity
           let samlIdentity;
-          // if (samlIdentities != null) {
-            if (this.result[organization].samlIdentityProvider) {
-              samlIdentity = "";
-              samlIdentities.edges.forEach(identity => {
-                if (identity.node.user.login == collaborator.node.login) {
-                    samlIdentity = identity.node.samlIdentity.nameId;
-                    console.log("(inside loop) samlIdentity = ", samlIdentity);
-                }
-              })
-            }
-
-          // }
-          console.log("samlIdentity = ", samlIdentity);
+          if (this.result[organization].samlIdentityProvider) {
+            samlIdentity = "";
+            externalIdentities.edges.forEach(identity => {
+              if (identity.node.user.login == collaborator.node.login) {
+                  samlIdentity = identity.node.samlIdentity.nameId;
+              }
+            })
+          }
 
           this.normalizedData.push({
             ...(this.enterprise ? { enterprise: this.enterprise } : null),
@@ -333,7 +322,6 @@ class CollectUserData {
             repository: repository.name,
             name: collaborator.node.name,
             login: collaborator.node.login,
-            // samlIdentity: samlIdentity,
             ...(this.result[organization].samlIdentityProvider ? { samlIdentity: samlIdentity } : null),
             permission: collaborator.permission
           });
@@ -348,6 +336,7 @@ const main = async () => {
   const organization =
     core.getInput("organization") || process.env.ORGANIZATION;
   const enterprise = core.getInput("enterprise") || process.env.ENTERPRISE;
+  const samlIdentities = core.getInput("samlIdentities") || process.env.samlIdentities
 
   const Collector = new CollectUserData(token, organization, enterprise, {
     repository: process.env.GITHUB_REPOSITORY,
