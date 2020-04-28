@@ -21,7 +21,7 @@ const ERROR_MESSAGE_TOKEN_UNAUTHORIZED =
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 class CollectUserData {
-  constructor(token, organization, enterprise, options) {
+  constructor(token, organization, enterprise, samlIdentities, options ) {
     this.validateInput(organization, enterprise);
 
     this.organizations = [{ login: organization }];
@@ -30,6 +30,7 @@ class CollectUserData {
     this.result = options.data || {};
     this.normalizedData = [];
     this.trackedLastRepoCursor = null;
+    this.samlIdentities = samlIdentities;
 
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
@@ -290,18 +291,46 @@ class CollectUserData {
       ) {
         return;
       }
+      let useSamlIdentities = false;
+      // if samlIdentities:true is specified and samlIdentities exist for the organization ...
+      if (this.samlIdentities == "true" && this.result[organization].samlIdentityProvider) {
+        useSamlIdentities = true;
+      }
+      //TODO: find the correct plact for this error
+      if (this.samlIdentities == "true" && !this.result[organization].samlIdentityProvider) {
+        core.info(
+          `⏸  No SAML Identities found for ${organization}, SAML SSO is either not configured or no member accounts are linked to your SAML IdP`
+        );
+      }
+
+      let externalIdentities;
+      if (useSamlIdentities == true) {
+        externalIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
+      }
       this.result[organization].repositories.nodes.forEach(repository => {
         if (!repository.collaborators.edges) {
           return;
         }
 
         repository.collaborators.edges.forEach(collaborator => {
+          // map collaborator login to samlIdentity
+          let samlIdentity;
+          if (useSamlIdentities == true) {
+            samlIdentity = "";
+            externalIdentities.edges.forEach(identity => {
+              if (identity.node.user.login == collaborator.node.login) {
+                  samlIdentity = identity.node.samlIdentity.nameId;
+              }
+            })
+          }
+
           this.normalizedData.push({
             ...(this.enterprise ? { enterprise: this.enterprise } : null),
             organization,
             repository: repository.name,
             name: collaborator.node.name,
             login: collaborator.node.login,
+            ...((useSamlIdentities == true) ? { samlIdentity: samlIdentity } : null),
             permission: collaborator.permission
           });
         });
@@ -312,11 +341,11 @@ class CollectUserData {
 
 const main = async () => {
   const token = core.getInput("token") || process.env.TOKEN;
-  const organization =
-    core.getInput("organization") || process.env.ORGANIZATION;
+  const organization = core.getInput("organization") || process.env.ORGANIZATION;
   const enterprise = core.getInput("enterprise") || process.env.ENTERPRISE;
+  const samlIdentities = core.getInput("samlIdentities") || process.env.samlIdentities
 
-  const Collector = new CollectUserData(token, organization, enterprise, {
+  const Collector = new CollectUserData(token, organization, enterprise, samlIdentities, {
     repository: process.env.GITHUB_REPOSITORY,
     postToIssue: core.getInput("issue") || process.env.ISSUE
   });

@@ -1,6 +1,6 @@
 # GitHub Membership Audit Action
 
-GitHub Action that provides an Enterprise Account or Organization Audit of members, repositories and which permissions these members have. The output of this action is a published CSV file in the Actions tab. The user can also configure the action to publish the results to an issue. 
+GitHub Action that provides an Enterprise Account or Organization Audit of members, repositories and which permissions these members have. The output of this action is a published CSV file in the Actions tab. The user can also configure the action to publish the results to an issue.
 
 The output looks like this running on `enterprise` mode:
 
@@ -25,6 +25,8 @@ The output looks like this running on `enterprise` mode:
         token: ${{ secrets.TOKEN }}
         ## issue is optional
         issue: true
+        ## samlIdentities is optional
+        samlIdentities: true
 ```
 
 ## Example workflows
@@ -35,23 +37,25 @@ Depending on your needs you might want to trigger the audit on different events.
 
 The action in the following workflow is configured to:
  - Work only on a single `organization`
+ - Expose the linked SAML `nameId` field for your members if your organization is using SAML SSO and you want to retrieve this info (generally a corporate email address used to login with SSO)
  - Publish results also to an `issue`
 
 ```yml
 on: push
 
 jobs:
-  
+
   audit_log:
     runs-on: ubuntu-latest
     name: Membership Audit Log
-        
+
     - name: Membership Audit Log Action
       uses: svanboxel/org-audit-action@v1
       with:
         organization: 'octodemov2'
         token: ${{ secrets.TOKEN }}
         issue: true
+        samlIdentities: true
 ```
 
 ### Enterprise Account audit on a schedule (cron)
@@ -67,11 +71,11 @@ on:
     - cron:  '0 0 * * 6'
 
 jobs:
-  
+
   audit_log:
     runs-on: ubuntu-latest
     name: Membership Audit Log
-        
+
     - name: Membership Audit Log Action
       uses: svanboxel/org-audit-action@v1
       with:
@@ -88,13 +92,13 @@ Use a [`repository_dispatch`](https://developer.github.com/v3/repos/#create-a-re
 
 ```yml
 on: repository_dispatch
-  
+
 jobs:
-  
+
   audit_log:
     runs-on: ubuntu-latest
     name: Membership Audit Log
-        
+
     - name: Membership Audit Log Action
       uses: svanboxel/org-audit-action@v1
       with:
@@ -106,7 +110,7 @@ jobs:
 ## Local testing
 You can test this action locally by using the following command:
 ```
-TOKEN=<github_token> ORGANIZATION=<organization name (or use ENTERPRISE=<enterprise_name>)> GITHUB_REPOSITORY=<owner>/<repository> node src/index.js
+TOKEN=<github_token> ORGANIZATION=<organization name (or use ENTERPRISE=<enterprise_name>)> GITHUB_REPOSITORY=<owner>/<repository> samlIdentities=true node src/index.js
 ```
 
 ## Help us improve it
