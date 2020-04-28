@@ -37,7 +37,7 @@ Depending on your needs you might want to trigger the audit on different events.
 
 The action in the following workflow is configured to:
  - Work only on a single `organization`
- - Expose the linked SAML nameId field for your members if your organization is using SAML SSO and you want to retrieve this info (generally a corporate email address used to login with SAML SSO)
+ - Expose the linked SAML `nameId` field for your members if your organization is using SAML SSO and you want to retrieve this info (generally a corporate email address used to login with SSO)
  - Publish results also to an `issue`
 
 ```yml
