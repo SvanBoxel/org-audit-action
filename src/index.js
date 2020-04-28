@@ -292,15 +292,17 @@ class CollectUserData {
         return;
       }
       let useSamlIdentities = false;
-      // if samlIdentities:true specified and samlIdentities exist for the organization, proceed
-      console.log("this.samlIdentities = ", this.samlIdentities);
-      console.log(typeof this.samlIdentities);
-      console.log("core.getInput(samlIdentities) = ", core.getInput("samlIdentities"));
-      console.log("process.env.samlIdentities = ", process.env.samlIdentities);
-
+      // if samlIdentities:true is specified and samlIdentities exist for the organization ...
       if (this.samlIdentities == "true" && this.result[organization].samlIdentityProvider) {
         useSamlIdentities = true;
       }
+      //TODO: find the correct plact for this error
+      if (this.samlIdentities == "true" && !this.result[organization].samlIdentityProvider) {
+        core.info(
+          `⏸  No SAML Identities found for ${organization}, SAML SSO is either not configured or no member accounts are linked to your SAML IdP`
+        );
+      }
+
       let externalIdentities;
       if (useSamlIdentities == true) {
         externalIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
