@@ -110,7 +110,7 @@ jobs:
 ## Local testing
 You can test this action locally by using the following command:
 ```
-TOKEN=<github_token> ORGANIZATION=<organization name (or use ENTERPRISE=<enterprise_name>)> GITHUB_REPOSITORY=<owner>/<repository> samlIdentities=true node src/index.js
+TOKEN=<github_token> ORGANIZATION=<organization name (or use ENTERPRISE=<enterprise_name>)> GITHUB_REPOSITORY=<owner>/<repository> node src/index.js
 ```
 
 ## Help us improve it
