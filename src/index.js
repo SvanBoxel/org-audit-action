@@ -21,7 +21,7 @@ const ERROR_MESSAGE_TOKEN_UNAUTHORIZED =
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 class CollectUserData {
-  constructor(token, organization, enterprise, options) {
+  constructor(token, organization, enterprise, samlIdentities, options ) {
     this.validateInput(organization, enterprise);
 
     this.organizations = [{ login: organization }];
@@ -30,6 +30,7 @@ class CollectUserData {
     this.result = options.data || {};
     this.normalizedData = [];
     this.trackedLastRepoCursor = null;
+    this.samlIdentities = samlIdentities;
 
     this.initiateGraphQLClient(token);
     this.initiateOctokit(token);
@@ -283,11 +284,6 @@ class CollectUserData {
 
   normalizeResult() {
     core.info(`⚛  Normalizing result.`);
-    
-    // if samlIdentities selected + samlIdentities exist, proceed
-    console.log("core.getInput.samlIdentity = ", core.getInput("samlIdentities"));
-    console.log("process.env.samlIdentities = ", process.env.samlIdentities);
-
     Object.keys(this.result).forEach(organization => {
       if (
         !this.result[organization] ||
@@ -295,8 +291,18 @@ class CollectUserData {
       ) {
         return;
       }
+      let useSamlIdentities = false;
+      // if samlIdentities:true specified and samlIdentities exist for the organization, proceed
+      console.log("this.samlIdentities = ", this.samlIdentities);
+      console.log(typeof this.samlIdentities);
+      console.log("core.getInput(samlIdentities) = ", core.getInput("samlIdentities"));
+      console.log("process.env.samlIdentities = ", process.env.samlIdentities);
+
+      if (this.samlIdentities == "true" && this.result[organization].samlIdentityProvider) {
+        useSamlIdentities = true;
+      }
       let externalIdentities;
-      if (this.result[organization].samlIdentityProvider) {
+      if (useSamlIdentities == true) {
         externalIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
       }
       this.result[organization].repositories.nodes.forEach(repository => {
@@ -307,7 +313,7 @@ class CollectUserData {
         repository.collaborators.edges.forEach(collaborator => {
           // map collaborator login to samlIdentity
           let samlIdentity;
-          if (this.result[organization].samlIdentityProvider) {
+          if (useSamlIdentities == true) {
             samlIdentity = "";
             externalIdentities.edges.forEach(identity => {
               if (identity.node.user.login == collaborator.node.login) {
@@ -322,7 +328,7 @@ class CollectUserData {
             repository: repository.name,
             name: collaborator.node.name,
             login: collaborator.node.login,
-            ...(this.result[organization].samlIdentityProvider ? { samlIdentity: samlIdentity } : null),
+            ...((useSamlIdentities == true) ? { samlIdentity: samlIdentity } : null),
             permission: collaborator.permission
           });
         });
@@ -333,12 +339,11 @@ class CollectUserData {
 
 const main = async () => {
   const token = core.getInput("token") || process.env.TOKEN;
-  const organization =
-    core.getInput("organization") || process.env.ORGANIZATION;
+  const organization = core.getInput("organization") || process.env.ORGANIZATION;
   const enterprise = core.getInput("enterprise") || process.env.ENTERPRISE;
   const samlIdentities = core.getInput("samlIdentities") || process.env.samlIdentities
 
-  const Collector = new CollectUserData(token, organization, enterprise, {
+  const Collector = new CollectUserData(token, organization, enterprise, samlIdentities, {
     repository: process.env.GITHUB_REPOSITORY,
     postToIssue: core.getInput("issue") || process.env.ISSUE
   });
