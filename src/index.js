@@ -293,18 +293,17 @@ class CollectUserData {
       }
       let useSamlIdentities = false;
       // if samlIdentities:true is specified and samlIdentities exist for the organization ...
-      if (this.samlIdentities == "true" && this.result[organization].samlIdentityProvider) {
+      if (this.samlIdentities && this.result[organization].samlIdentityProvider) {
         useSamlIdentities = true;
       }
-      //TODO: find the correct plact for this error
-      if (this.samlIdentities == "true" && !this.result[organization].samlIdentityProvider) {
+      if (this.samlIdentities && !this.result[organization].samlIdentityProvider) {
         core.info(
           `⏸  No SAML Identities found for ${organization}, SAML SSO is either not configured or no member accounts are linked to your SAML IdP`
         );
       }
 
       let externalIdentities;
-      if (useSamlIdentities == true) {
+      if (useSamlIdentities === true) {
         externalIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
       }
       this.result[organization].repositories.nodes.forEach(repository => {
@@ -315,7 +314,7 @@ class CollectUserData {
         repository.collaborators.edges.forEach(collaborator => {
           // map collaborator login to samlIdentity
           let samlIdentity;
-          if (useSamlIdentities == true) {
+          if (useSamlIdentities === true) {
             samlIdentity = "";
             externalIdentities.edges.forEach(identity => {
               if (identity.node.user.login == collaborator.node.login) {
@@ -330,7 +329,7 @@ class CollectUserData {
             repository: repository.name,
             name: collaborator.node.name,
             login: collaborator.node.login,
-            ...((useSamlIdentities == true) ? { samlIdentity: samlIdentity } : null),
+            ...((useSamlIdentities === true) ? { samlIdentity: samlIdentity } : null),
             permission: collaborator.permission
           });
         });
@@ -343,7 +342,7 @@ const main = async () => {
   const token = core.getInput("token") || process.env.TOKEN;
   const organization = core.getInput("organization") || process.env.ORGANIZATION;
   const enterprise = core.getInput("enterprise") || process.env.ENTERPRISE;
-  const samlIdentities = core.getInput("samlIdentities") || process.env.samlIdentities
+  const samlIdentities = (core.getInput("samlIdentities") || process.env.samlIdentities) === 'true'
 
   const Collector = new CollectUserData(token, organization, enterprise, samlIdentities, {
     repository: process.env.GITHUB_REPOSITORY,
