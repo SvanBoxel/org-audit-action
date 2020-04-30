@@ -21,7 +21,7 @@ const ERROR_MESSAGE_TOKEN_UNAUTHORIZED =
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 class CollectUserData {
-  constructor(token, organization, enterprise, options ) {
+  constructor(token, organization, enterprise, options) {
     this.validateInput(organization, enterprise);
 
     this.organizations = [{ login: organization }];
