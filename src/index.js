@@ -155,6 +155,8 @@ class CollectUserData {
         );
         return;
       }
+      
+      throw error;
     } finally {
       if (!data || !data.repositories.nodes.length) {
         core.info(
