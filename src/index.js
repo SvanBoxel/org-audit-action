@@ -318,6 +318,9 @@ class CollectUserData {
           if (useSamlIdentities === true) {
             samlIdentity = "";
             externalIdentities.edges.forEach(identity => {
+              if (!identity.node.user || !identity.node.user.login) {
+                return;
+              }
               if (identity.node.user.login == collaborator.node.login) {
                   samlIdentity = identity.node.samlIdentity.nameId;
               }
