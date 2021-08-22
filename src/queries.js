@@ -1,4 +1,4 @@
-const MAX_COLLABORATORS_PER_CALL = 50;
+const MAX_COLLABORATORS_PER_CALL = 100;
 
 const queries = {
   orgRepoAndCollaboratorQuery: `
@@ -31,10 +31,10 @@ const queries = {
     }
   `,
   orgSAMLquery: `
-    query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
+    query ($organization: String!, $samlCursor: String) {
       organization(login: $organization) {
         samlIdentityProvider {
-          externalIdentities(first: 100) {
+          externalIdentities(first: 100, after: $samlCursor) {
             pageInfo {
               startCursor
               endCursor
