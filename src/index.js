@@ -149,7 +149,7 @@ class CollectUserData {
         samlCursor
       );
     } catch (error) {
-      console.log(error)
+      core.info("error: " + error.message)
     } finally {
       // handle empty response
       if (!data || !data.samlIdentityProvider.externalIdentities.edges.length) {
@@ -318,8 +318,8 @@ class CollectUserData {
       }
 
       await this.endCollection();
-    } catch (err) {
-      console.log(err);
+    } catch (error) {
+      console.log(error.message);
       await this.endCollection();
     }
   }
