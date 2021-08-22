@@ -360,11 +360,6 @@ class CollectUserData {
       }
       let useSamlIdentities = false;
 
-      // retrieve SAML identities if configured
-      if (this.options.samlIdentities) {
-        
-      }
-
       // if samlIdentities:true is specified and saml identities exist for the organization ...
       if (this.options.samlIdentities && this.result[organization].samlIdentityProvider) {
         useSamlIdentities = true;
@@ -390,8 +385,11 @@ class CollectUserData {
           if (useSamlIdentities === true) {
             samlIdentity = "";
             externalIdentities.edges.forEach(identity => {
-              if (identity.node.user.login == collaborator.node.login) {
+              // handle empty response
+              if (identity.node.user){
+                if (identity.node.user.login == collaborator.node.login) {
                   samlIdentity = identity.node.samlIdentity.nameId;
+                }
               }
             })
           }
