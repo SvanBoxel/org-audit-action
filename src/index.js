@@ -7,7 +7,7 @@ const fs = require("fs");
 const { promisify } = require("util");
 
 const { JSONtoCSV } = require("./utils");
-const { organizationQuery, enterpriseQuery } = require("./queries");
+const { orgRepoAndCollaboratorQuery, enterpriseQuery } = require("./queries");
 
 const writeFileAsync = promisify(fs.writeFile);
 
@@ -120,7 +120,7 @@ class CollectUserData {
     collaboratorsCursor = null,
     repositoriesCursor = null
   ) {
-    const { organization: data } = await this.graphqlClient(organizationQuery, {
+    const { organization: data } = await this.graphqlClient(orgRepoAndCollaboratorQuery, {
       organization,
       collaboratorsCursor,
       repositoriesCursor
