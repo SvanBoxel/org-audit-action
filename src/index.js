@@ -343,7 +343,7 @@ class CollectUserData {
     process.exit();
   }
 
-  async normalizeResult() {
+  normalizeResult() {
     core.info(`⚛  Normalizing result.`);
     // normalize each org in the result
     Object.keys(this.result).forEach(organization => {
