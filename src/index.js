@@ -7,7 +7,11 @@ const fs = require("fs");
 const { promisify } = require("util");
 
 const { JSONtoCSV } = require("./utils");
-const { organizationQuery, enterpriseQuery } = require("./queries");
+const {
+  orgRepoAndCollaboratorQuery,
+  orgSAMLquery,
+  enterpriseQuery
+} = require("./queries");
 
 const writeFileAsync = promisify(fs.writeFile);
 
@@ -115,29 +119,87 @@ class CollectUserData {
     return enterprise;
   }
 
-  async requestOrganizationData(
+  async requestOrgReposAndCollaborators(
     organization,
     collaboratorsCursor = null,
     repositoriesCursor = null
   ) {
-    const { organization: data } = await this.graphqlClient(organizationQuery, {
+    const { organization: data } = await this.graphqlClient(
+      orgRepoAndCollaboratorQuery,
+      {
+        organization,
+        collaboratorsCursor,
+        repositoriesCursor
+      }
+    );
+
+    return data;
+  }
+
+  async requestSAMLidentities(organization, samlCursor = null) {
+    const { organization: data } = await this.graphqlClient(orgSAMLquery, {
       organization,
-      collaboratorsCursor,
-      repositoriesCursor
+      samlCursor
     });
 
     return data;
   }
 
-  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
+  async collectSAMLidentities(organization, samlCursor = null) {
     let data;
     try {
-      data = await this.requestOrganizationData(
+      data = await this.requestSAMLidentities(organization, samlCursor);
+    } catch (error) {
+      core.info("error: " + error.message);
+    } finally {
+      // handle empty response
+      if (!data || !data.samlIdentityProvider.externalIdentities.edges.length) {
+        core.info(`⏸  No SAML found for ${organization}`);
+        return;
+      }
+
+      // set constants
+      const identitiesPage = data.samlIdentityProvider.externalIdentities;
+      let result;
+      // handle first page of results
+      if (!this.result[organization].samlIdentityProvider) {
+        result = this.result[organization].samlIdentityProvider =
+          data.samlIdentityProvider;
+      } else {
+        result = this.result[organization].samlIdentityProvider;
+        // add result to existing object
+        result.externalIdentities.edges = [
+          ...result.externalIdentities.edges,
+          ...identitiesPage.edges
+        ];
+      }
+
+      this.result[organization].samlIdentities = result;
+
+      if (identitiesPage.pageInfo.hasNextPage === true) {
+        core.info(`Grabbing more saml identities`);
+        await this.collectSAMLidentities(
+          organization,
+          identitiesPage.pageInfo.endCursor
+        );
+        return;
+      }
+
+      return this.result[organization].samlIdentityProvider;
+    }
+  }
+
+  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
+    let data;
+    // fetch organization data
+    try {
+      data = await this.requestOrgReposAndCollaborators(
         organization,
         collaboratorsCursor,
         repositoriesCursor
       );
     } catch (error) {
+      //handle errors
       if (error.message === ERROR_MESSAGE_TOKEN_UNAUTHORIZED) {
         core.info(
           `⏸  The token you use isn't authorized to be used with ${organization}`
@@ -156,17 +218,19 @@ class CollectUserData {
         return;
       }
     } finally {
+      // handle empty response
       if (!data || !data.repositories.nodes.length) {
         core.info(
           `⏸  No data found for ${organization}, probably you don't have the right permission`
         );
         return;
       }
-
+      // set constants
       const repositoriesPage = data.repositories;
-      const currentRepository = repositoriesPage.nodes[0];
-      const collaboratorsPage = currentRepository.collaborators;
+      const currentRepository = repositoriesPage.nodes[0]; // orgRepoAndCollaboratorQuery will always return a single repo
+      const collaboratorsPage = currentRepository.collaborators; // handle collaborator pagination
       let result;
+      // handle first page of results
       if (!this.result[organization]) {
         result = this.result[organization] = data;
         this.trackedLastRepoCursor = repositoriesCursor;
@@ -241,6 +305,7 @@ class CollectUserData {
         core.startGroup(`🔍 Start collecting for organization ${login}.`);
         this.result[login] = null;
         await this.collectData(login);
+        await this.collectSAMLidentities(login);
 
         if (this.result[login]) {
           core.info(
@@ -251,14 +316,14 @@ class CollectUserData {
       }
 
       await this.endCollection();
-    } catch (err) {
-      console.log(err);
+    } catch (error) {
+      console.log(error.message);
       await this.endCollection();
     }
   }
 
   async endCollection() {
-    this.normalizeResult();
+    await this.normalizeResult();
     const json = this.normalizedData;
 
     if (!json.length) {
@@ -271,10 +336,7 @@ class CollectUserData {
       `${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.json`,
       JSON.stringify(json)
     );
-    await writeFileAsync(
-      `${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`,
-      csv
-    );
+    await writeFileAsync(`${DATA_FOLDER}/${ARTIFACT_FILE_NAME}.csv`, csv);
 
     await this.createandUploadArtifacts();
     await this.postResultsToIssue(csv);
@@ -283,6 +345,7 @@ class CollectUserData {
 
   normalizeResult() {
     core.info(`⚛  Normalizing result.`);
+    // normalize each org in the result
     Object.keys(this.result).forEach(organization => {
       if (
         !this.result[organization] ||
@@ -291,11 +354,18 @@ class CollectUserData {
         return;
       }
       let useSamlIdentities = false;
+
       // if samlIdentities:true is specified and saml identities exist for the organization ...
-      if (this.options.samlIdentities && this.result[organization].samlIdentityProvider) {
+      if (
+        this.options.samlIdentities &&
+        this.result[organization].samlIdentityProvider
+      ) {
         useSamlIdentities = true;
       }
-      if (this.options.samlIdentities && !this.result[organization].samlIdentityProvider) {
+      if (
+        this.options.samlIdentities &&
+        !this.result[organization].samlIdentityProvider
+      ) {
         core.info(
           `⏸  No SAML Identities found for ${organization}, SAML SSO is either not configured or no member accounts are linked to your SAML IdP`
         );
@@ -303,7 +373,8 @@ class CollectUserData {
 
       let externalIdentities;
       if (useSamlIdentities === true) {
-        externalIdentities = this.result[organization].samlIdentityProvider.externalIdentities;
+        externalIdentities = this.result[organization].samlIdentityProvider
+          .externalIdentities;
       }
       this.result[organization].repositories.nodes.forEach(repository => {
         if (!repository.collaborators.edges) {
@@ -316,10 +387,13 @@ class CollectUserData {
           if (useSamlIdentities === true) {
             samlIdentity = "";
             externalIdentities.edges.forEach(identity => {
-              if (identity.node.user.login == collaborator.node.login) {
+              // handle empty response
+              if (identity.node.user) {
+                if (identity.node.user.login == collaborator.node.login) {
                   samlIdentity = identity.node.samlIdentity.nameId;
+                }
               }
-            })
+            });
           }
 
           this.normalizedData.push({
@@ -328,7 +402,9 @@ class CollectUserData {
             repository: repository.name,
             name: collaborator.node.name,
             login: collaborator.node.login,
-            ...((useSamlIdentities === true) ? { samlIdentity: samlIdentity } : null),
+            ...(useSamlIdentities === true
+              ? { samlIdentity: samlIdentity }
+              : null),
             permission: collaborator.permission
           });
         });
@@ -339,13 +415,15 @@ class CollectUserData {
 
 const main = async () => {
   const token = core.getInput("token") || process.env.TOKEN;
-  const organization = core.getInput("organization") || process.env.ORGANIZATION;
+  const organization =
+    core.getInput("organization") || process.env.ORGANIZATION;
   const enterprise = core.getInput("enterprise") || process.env.ENTERPRISE;
 
   const Collector = new CollectUserData(token, organization, enterprise, {
     repository: process.env.GITHUB_REPOSITORY,
     postToIssue: core.getInput("issue") || process.env.ISSUE,
-    samlIdentities: (core.getInput("samlIdentities") || process.env.samlIdentities) === 'true'
+    samlIdentities:
+      (core.getInput("samlIdentities") || process.env.samlIdentities) === "true"
   });
   await Collector.startCollection();
 };

@@ -1,28 +1,9 @@
-const MAX_COLLABORATORS_PER_CALL = 50;
+const MAX_COLLABORATORS_PER_CALL = 100;
 
 const queries = {
-  organizationQuery: `
+  orgRepoAndCollaboratorQuery: `
     query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
       organization(login: $organization) {
-        samlIdentityProvider {
-          externalIdentities(first: 100) {
-            pageInfo {
-              startCursor
-              endCursor
-              hasNextPage
-            }
-            edges {
-              node {
-                samlIdentity {
-                  nameId
-                }
-                user {
-                  login
-                }
-              }
-            }
-          }
-        }
         repositories (first: 1, after: $repositoriesCursor) {
           pageInfo {
             startCursor
@@ -47,7 +28,33 @@ const queries = {
           }
         }
       }
-    }`,
+    }
+  `,
+  orgSAMLquery: `
+    query ($organization: String!, $samlCursor: String) {
+      organization(login: $organization) {
+        samlIdentityProvider {
+          externalIdentities(first: 100, after: $samlCursor) {
+            pageInfo {
+              startCursor
+              endCursor
+              hasNextPage
+            }
+            edges {
+              node {
+                samlIdentity {
+                  nameId
+                }
+                user {
+                  login
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `,
   enterpriseQuery: `
     query ($enterprise: String!) {
       enterprise(slug: $enterprise) {
