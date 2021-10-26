@@ -21,7 +21,7 @@ The output looks like this running on `enterprise` mode:
       with:
         ## `organization` and `enterprise` are mutually exclusive
         enterprise: 'goodcorp'  
-        ## repo, read:org, read:enteprise (if running with enterprise option)
+        ## repo, read:org, read:enterprise (if running with enterprise option)
         token: ${{ secrets.TOKEN }}
         ## issue is optional
         issue: true
