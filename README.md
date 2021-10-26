@@ -12,7 +12,6 @@ The output looks like this running on `enterprise` mode:
 | goodcorp   | core         | innersource-docs | Vitor Monteiro   | bitoiu     | ADMIN      |   |
 | goodcorp   | core         | innersource-docs | Richard Erwin    | rerwinx    | READ       |   |
 
-
 ## Action configuration overview
 
 ```yml
@@ -36,9 +35,10 @@ Depending on your needs you might want to trigger the audit on different events.
 ### Single org-audit audit on push (good for testing)
 
 The action in the following workflow is configured to:
- - Work only on a single `organization`
- - Expose the linked SAML `nameId` field for your members if your organization is using SAML SSO and you want to retrieve this info (generally a corporate email address used to login with SSO)
- - Publish results also to an `issue`
+
+- Work only on a single `organization`
+- Expose the linked SAML `nameId` field for your members if your organization is using SAML SSO and you want to retrieve this info (generally a corporate email address used to login with SSO)
+- Publish results also to an `issue`
 
 ```yml
 on: push
@@ -61,8 +61,9 @@ jobs:
 ### Enterprise Account audit on a schedule (cron)
 
 The action in the following workflow is configured to:
- - Work on an `enterprise` account
- - Publish results also to an `issue`
+
+- Work on an `enterprise` account
+- Publish results also to an `issue`
 
 ```yml
 on:
@@ -87,8 +88,9 @@ jobs:
 ### Enterprise Audit triggered by an external service
 
 Use a [`repository_dispatch`](https://developer.github.com/v3/repos/#create-a-repository-dispatch-event) event to trigger this workflow. The action in the following workflow is configured to:
- - Work on an `enterprise` account
- - Publish results also to an `issue`
+
+- Work on an `enterprise` account
+- Publish results also to an `issue`
 
 ```yml
 on: repository_dispatch
@@ -108,11 +110,13 @@ jobs:
 ```
 
 ## Local testing
+
 You can test this action locally by using the following command:
-```
+
+```sh
 TOKEN=<github_token> ORGANIZATION=<organization name (or use ENTERPRISE=<enterprise_name>)> GITHUB_REPOSITORY=<owner>/<repository> node src/index.js
 ```
 
 ## Help us improve it
 
-Open an issue on: https://github.com/svanboxel/org-audit-action
+Open an issue on: <https://github.com/svanboxel/org-audit-action>
