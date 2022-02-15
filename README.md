@@ -26,6 +26,8 @@ The output looks like this running on `enterprise` mode:
         issue: true
         ## samlIdentities is optional
         samlIdentities: true
+        ## affiliation is optional - values are 'ALL', 'DIRECT' (i.e. members only) or 'OUTSIDE' (i.e. outside collaborators only)
+        affiliation: 'ALL'
 ```
 
 ## Example workflows
