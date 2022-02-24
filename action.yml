@@ -18,6 +18,10 @@ inputs:
     description: 'If your organization is using SAML SSO and you want to retrieve the SAML nameId field for members'
     required: false
     default: false
+  affiliation:
+    description: 'Type of people you want to retrieve. `DIRECT` for organization members, `OUTSIDE` for outside collaboratores, and `ALL` (default) for everyone'
+    required: false
+    default: 'ALL'
 outputs:
   csv:
     description: 'A CSV string with the output'

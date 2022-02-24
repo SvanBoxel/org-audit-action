@@ -2,7 +2,7 @@ const MAX_COLLABORATORS_PER_CALL = 100;
 
 const queries = {
   orgRepoAndCollaboratorQuery: `
-    query ($organization: String!, $collaboratorsCursor: String, $repositoriesCursor: String) {
+    query ($organization: String!, $affiliation: CollaboratorAffiliation!, $collaboratorsCursor: String, $repositoriesCursor: String) {
       organization(login: $organization) {
         repositories (first: 1, after: $repositoriesCursor) {
           pageInfo {
@@ -12,7 +12,7 @@ const queries = {
           }
           nodes {
             name
-            collaborators(first: ${MAX_COLLABORATORS_PER_CALL}, after: $collaboratorsCursor, affiliation: ALL) {
+            collaborators(first: ${MAX_COLLABORATORS_PER_CALL}, after: $collaboratorsCursor, affiliation: $affiliation) {
               pageInfo {
                 endCursor
                 hasNextPage

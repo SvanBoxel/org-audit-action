@@ -25,11 +25,17 @@ const ERROR_MESSAGE_TOKEN_UNAUTHORIZED =
 !fs.existsSync(DATA_FOLDER) && fs.mkdirSync(DATA_FOLDER);
 
 class CollectUserData {
-  constructor(token, organization, enterprise, options) {
+  constructor(token, organization, enterprise, affiliation, options) {
     this.validateInput(organization, enterprise);
+
+    if (!['ALL', 'OUTSIDE', 'DIRECT'].includes(affiliation)) {
+      core.setFailed(`'${affiliation}' is not an accepted value for the affiliation parameter. Must be 'ALL', 'OUTSIDE' or 'DIRECT'`);
+      process.exit();
+    }  
 
     this.organizations = [{ login: organization }];
     this.enterprise = enterprise;
+    this.affiliation = affiliation;
     this.options = options;
     this.result = options.data || {};
     this.normalizedData = [];
@@ -91,7 +97,6 @@ class CollectUserData {
       body: body
     });
 
-    core.info(issue_response);
     await this.octokit.issues.update({
       owner,
       repo,
@@ -121,6 +126,7 @@ class CollectUserData {
 
   async requestOrgReposAndCollaborators(
     organization,
+    affiliation,
     collaboratorsCursor = null,
     repositoriesCursor = null
   ) {
@@ -128,6 +134,7 @@ class CollectUserData {
       orgRepoAndCollaboratorQuery,
       {
         organization,
+        affiliation,
         collaboratorsCursor,
         repositoriesCursor
       }
@@ -189,12 +196,13 @@ class CollectUserData {
     }
   }
 
-  async collectData(organization, collaboratorsCursor, repositoriesCursor) {
+  async collectData(organization, affiliation, collaboratorsCursor, repositoriesCursor) {
     let data;
     // fetch organization data
     try {
       data = await this.requestOrgReposAndCollaborators(
         organization,
+        affiliation,
         collaboratorsCursor,
         repositoriesCursor
       );
@@ -212,6 +220,7 @@ class CollectUserData {
         );
         await this.collectData(
           organization,
+          affiliation,
           null,
           error.data.organization.repositories.pageInfo.endCursor
         );
@@ -267,6 +276,7 @@ class CollectUserData {
         );
         await this.collectData(
           organization,
+          affiliation,
           collaboratorsPage.pageInfo.endCursor,
           repoStartCursor
         );
@@ -284,6 +294,7 @@ class CollectUserData {
       if (repositoriesPage.pageInfo.hasNextPage === true) {
         await this.collectData(
           organization,
+          affiliation,
           null,
           repositoriesPage.pageInfo.endCursor
         );
@@ -304,7 +315,7 @@ class CollectUserData {
       for (const { login } of this.organizations) {
         core.startGroup(`🔍 Start collecting for organization ${login}.`);
         this.result[login] = null;
-        await this.collectData(login);
+        await this.collectData(login, this.affiliation);
         await this.collectSAMLidentities(login);
 
         if (this.result[login]) {
@@ -317,7 +328,7 @@ class CollectUserData {
 
       await this.endCollection();
     } catch (error) {
-      console.log(error.message);
+      core.error(error.message);
       await this.endCollection();
     }
   }
@@ -355,20 +366,15 @@ class CollectUserData {
       }
       let useSamlIdentities = false;
 
-      // if samlIdentities:true is specified and saml identities exist for the organization ...
-      if (
-        this.options.samlIdentities &&
-        this.result[organization].samlIdentityProvider
-      ) {
-        useSamlIdentities = true;
-      }
-      if (
-        this.options.samlIdentities &&
-        !this.result[organization].samlIdentityProvider
-      ) {
-        core.info(
-          `⏸  No SAML Identities found for ${organization}, SAML SSO is either not configured or no member accounts are linked to your SAML IdP`
-        );
+      // if samlIdentities:true is specified and saml identities exist for the organization and we're not only looking for outside collaborators ...
+      if (this.options.samlIdentities && this.affiliation !== 'OUTSIDE') {
+        if (this.result[organization].samlIdentityProvider)  {
+          useSamlIdentities = true;
+        } else {
+          core.info(
+            `⏸  No SAML Identities found for ${organization}, SAML SSO is either not configured or no member accounts are linked to your SAML IdP`
+          );
+        }
       }
 
       let externalIdentities;
@@ -418,8 +424,9 @@ const main = async () => {
   const organization =
     core.getInput("organization") || process.env.ORGANIZATION;
   const enterprise = core.getInput("enterprise") || process.env.ENTERPRISE;
-
-  const Collector = new CollectUserData(token, organization, enterprise, {
+  const affiliation = core.getInput("affiliation") || process.env.AFFILIATION;
+  
+  const Collector = new CollectUserData(token, organization, enterprise, affiliation, {
     repository: process.env.GITHUB_REPOSITORY,
     postToIssue: core.getInput("issue") || process.env.ISSUE,
     samlIdentities:
