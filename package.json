@@ -23,7 +23,7 @@
   "homepage": "https://github.com/svanboxel/org-audit-action#readme",
   "dependencies": {
     "@actions/artifact": "^0.1.0",
-    "@actions/core": "^1.2.2",
+    "@actions/core": "^1.2.6",
     "@actions/github": "^2.1.1",
     "@octokit/graphql": "^4.3.1",
     "@octokit/rest": "^17.0.0",
