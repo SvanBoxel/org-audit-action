@@ -28,7 +28,7 @@
     "@octokit/graphql": "^4.3.1",
     "@octokit/rest": "^17.0.0",
     "csv-to-markdown-table": "1.1.0",
-    "csv2md": "1.0.1"
+    "csv2md": "^1.1.0"
   },
   "devDependencies": {
     "prettier": "1.19.1"
